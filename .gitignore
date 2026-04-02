@@ -1,0 +1,11 @@
+.vscode/
+*.h5
+*.out
+*.png
+*.gif
+*.jpg
+*.vti
+*.pvsm
+*.vtkhdf
+*.npz
+*.log

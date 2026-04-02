@@ -1,0 +1,16 @@
+name: rahpo-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - numpy>=1.21.0
+  - scipy>=1.7.0
+  - matplotlib>=3.5.0
+  - h5py>=3.6.0
+  - joblib>=1.1.0
+  # Optional: useful for configuration management and CLI parsing if you implement it
+  - pyyaml 
+  - pip
+  - pip:
+    # Add any specific pip-only packages here if needed in the future
