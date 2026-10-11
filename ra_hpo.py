@@ -2,16 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-RA-HPO: Ray-Aligned Hybrid Physical Optics Method
-Version: Updated for ARBITRARY CURVED FRACTURES (Meshed Surface Approach).
-Copyright (c) 2025 Jinqiang Chen
-Deliverable for the GeoHEAT project
+RA-HPO: Ray-Aligned Hybrid Physical Optics forward solver for borehole radar.
 
-Description:
-This script models the response of a borehole radar for deep geothermal exploration.
-It uses a semi-analytical method, propagating numerical near-field data (from gprMax)
-to a far-field fracture using ray-aligned propagation, and computes the "re-entry"
-coupling back to the receiver using the Electromagnetic Reciprocity Theorem.
+A single FDTD simulation (gprMax) resolves the near-borehole region and records the field on a
+reference plane. This solver propagates that field along rays to a meshed fracture surface,
+scatters it by physical optics with three-layer TE/TM reflection coefficients, and couples the
+scattered field back to the receiver through electromagnetic reciprocity.
+
+Copyright (c) 2026 Jinqiang Chen, Alexis Shakas, Evert Slob. MIT License (see LICENSE).
 """
 
 import os
@@ -55,9 +53,13 @@ FC  = 100e6  # center frequency
 @dataclass
 class MediaParams:
     epsr2: float = 9.0       # background (rock)
-    epsr_plane: float = 43.0 # fracture fluid
+    epsr_plane: float = 80.0 # fracture fluid
     sigma_rock: float = 1e-4
-    sigma_water: float = 10.0
+    sigma_water: float = 0.5
+    # Medium 1: the host in which the reference plane was recorded. It equals the background
+    # (medium 2) unless the plane is re-radiated into a different medium (two-medium mode).
+    epsr1: float = 9.0
+    sigma_rock1: float = 1e-4
 
 @dataclass
 class SourceParams:
@@ -69,6 +71,7 @@ class SourceParams:
 class GeometryParams:
     ellength: float = 0.01    # Discretization size
     planethick: float = 0.04  # Fracture aperture
+    amplitude: float = 0.25   # Corrugation amplitude A, used by fracture_type='sinusoidal_3d'
     
     # Grid bounds for the fracture generation (y-z plane)
     ymin: float = 1.0
@@ -83,10 +86,15 @@ class GeometryParams:
     # Base X position
     x_base: float = 6.5
 
+    # Element area in the reaction integral: 'true' weights each element by its surface area,
+    # ellength**2 / |n_x|; 'projected' by the projected cell ellength**2. The two are identical
+    # on a planar fracture (n_x = 1).
+    element_area: str = 'true'
+
     # Flag for heterogeneity
-    is_heterogeneous: bool = True
+    is_heterogeneous: bool = False
     fracture_type: str = 'planar'  # Keep track of geometry
-    sigma_gpr: float = 10.0         # Add dynamic sigma
+    sigma_gpr: float = 10.0        # Add dynamic sigma
     phi_min: float = 0.1           # Add dynamic phi
     phi_max: float = 0.9           # Add dynamic phi
     thickness_var: float = 0.0
@@ -102,16 +110,36 @@ class RuntimeParams:
     cores: int = 24
     critdist: float = 0.0 
     tapw: float = 0.0  
-    plane_file: str = "" # Path populated via argparse
+    tx_plane_file: str = "" # Path populated via argparse
+    rx_plane_file: str = "" # Path populated via argparse
     comps: Tuple[str, ...] = ("Ex", "Ey", "Ez", "Hx", "Hy", "Hz")
+    no_viz: bool = False  # skip the diagnostic 3D geometry plot
+    # Receiver spacing to read the plane at, in metres. None reads the plane as recorded. Set
+    # it to read a finely recorded plane at a coarser spacing.
+    target_res: Optional[float] = None
+    # Cosine-squared edge taper on the element contributions, width in metres. 0.0 means no
+    # taper (bounded fractures); the infinite planar case uses it. See edge_taper_weights().
+    edge_taper: float = 0.0
+    # Incidence direction used for the reflection at each element. "band" (the method) takes
+    # one direction per element, from the band-averaged real Poynting vector, and applies it at
+    # every frequency. "perfreq" is a diagnostic: it recomputes the direction, the TE/TM basis
+    # and the reflection angle at each frequency, and logs how far the per-frequency directions
+    # spread around the band average. See per_frequency_directions().
+    incidence: str = "band"
+    # Filled by run_simulation in "perfreq" mode: (element positions, spread in rad, contribution)
+    incidence_spread: Optional[tuple] = None
 
 @dataclass
 class WorkerParams:
     # State payload passed to parallel worker nodes
-    Epos: Dict[str, np.ndarray]
-    E_time: Dict[str, np.ndarray]
+    
+    Epos_tx: Dict[str, np.ndarray]
+    Epos_rx: Dict[str, np.ndarray]
+
     yy: np.ndarray; zz: np.ndarray; x1: float
+    r_yy: np.ndarray; r_zz: np.ndarray; r_x1: float
     omega_pos: np.ndarray; gamma_pos: np.ndarray
+    gamma_pos1: np.ndarray; eamp: np.ndarray # Medium-1 propagation constant and E amplitude factor (y1/y2)
     dt: float; Npre: int; Nt_out: int; Nfft: int; v: float
     epsr2: float; eps0_local: float
     
@@ -126,9 +154,11 @@ class WorkerParams:
     # Optional placeholders
     doradpat: int = 0
     pws_interpor: Optional[Any] = None
+    use_shift: bool = False  # reciprocal field by axial shift of the forward field
+    incidence: str = "band"  # "band" or the "perfreq" diagnostic, see RuntimeParams.incidence
 
 # -----------------------------------------------------------------------------
-# GEOMETRY GENERATION (Core Mathematics - Untouched)
+# GEOMETRY GENERATION
 # -----------------------------------------------------------------------------
 def fracture_surface_function(y_grid, z_grid, geom: GeometryParams):
     """
@@ -172,7 +202,8 @@ def fracture_surface_function(y_grid, z_grid, geom: GeometryParams):
             x_start_curved = x_flat - drop_at_boundary
             x_surf[mask3] = x_start_curved + curvature * (R[mask3] - outer_radius)**2
     elif geom.fracture_type == 'sinusoidal_3d':
-        A = 0.25 
+        # Biaxial corrugation; the lateral periods follow the meshed extent.
+        A = geom.amplitude
         kz = 2 * np.pi / ((geom.zmax - geom.zmin) * 2 / 3) 
         ky = 2 * np.pi / ((geom.ymax - geom.ymin) / 2)
         x0 = geom.x_base 
@@ -273,14 +304,15 @@ def fracture_properties_function(Y, Z, geom, media):
     Z_local = Z - geom.zmin
 
     if getattr(geom, 'load_from_file', False) and os.path.exists(geom.h5_path):
+        logging.info("Loading fracture properties directly from gprMax files...")
         return load_fracture_properties_from_files(Y_local, Z_local, geom, media)
 
     # -------------------------------------------------------------------
-    # OPTIONAL: recreat exact gprMax (U, V) UNWRAPPED FIELD analytically
+    # Without files: recreate the gprMax (U, V) unwrapped field analytically
     # -------------------------------------------------------------------
     ny_gpr, nz_gpr = 800, 800
     h_gpr = 0.01
-    sigma_gpr = getattr(geom, 'sigma_gpr', 5.0)
+    sigma_gpr = getattr(geom, 'sigma_gpr', 10.0)
     phi_min = getattr(geom, 'phi_min', 0.1)
     phi_max = getattr(geom, 'phi_max', 0.9)
     
@@ -303,8 +335,8 @@ def fracture_properties_function(Y, Z, geom, media):
 
     # If using the unwrapped U, V logic, must interpolate these global Y,Z coordinates 
     # to find the corresponding local u_spec, v_spec
-    y_spec_local = 4.0
-    z_spec_local = 4.0
+    y_spec_local = ny_gpr * h_gpr / 2.0
+    z_spec_local = nz_gpr * h_gpr / 2.0
     u_spec = interp_Y_to_U(np.array([[y_spec_local, z_spec_local]]))[0]
     v_spec = interp_Z_to_V(np.array([[y_spec_local, z_spec_local]]))[0]
 
@@ -312,13 +344,34 @@ def fracture_properties_function(Y, Z, geom, media):
     idx_v_spec = np.argmin(np.abs(v_vec - v_spec))
     
     np.random.seed(43)
-    buffer = int(4.0 * sigma_gpr)
-    pan_margin = int(max(20, sigma_gpr))
+    Lc_pixels = 2.0 * sigma_gpr
+    buffer = int(4.0 * Lc_pixels)
+    pan_margin = 0.0 #int(max(20, sigma_gpr))
     total_pad = buffer + pan_margin
     padded_shape = (nu + 2 * total_pad, nv + 2 * total_pad)
     padded_noise = np.random.normal(loc=0.0, scale=1.0, size=padded_shape)
     
-    correlated_padded = gaussian_filter(padded_noise, sigma=sigma_gpr)
+    # correlated_padded = gaussian_filter(padded_noise, sigma=sigma_gpr) 
+    # FFT spectral synthesis of an exponential-covariance field
+    noise_fft = np.fft.fft2(padded_noise)
+    
+    # Create normalized frequency grids
+    kx = np.fft.fftfreq(padded_shape[0])
+    ky = np.fft.fftfreq(padded_shape[1])
+    KX, KY = np.meshgrid(kx, ky, indexing='ij')
+    K_sq = KX**2 + KY**2
+    
+    # Power Spectral Density (PSD) of a 2D Exponential Covariance function
+    # S(k) is proportional to (1 + (2*pi*k*L_c)^2)^(-3/2)
+    psd = (1.0 + (2.0 * np.pi * Lc_pixels)**2 * K_sq)**(-1.5)
+    
+    # The required Fourier domain filter is the square root of the PSD
+    filter_response = np.sqrt(psd)
+    
+    # Apply filter and transform back to spatial domain
+    field_fft = noise_fft * filter_response
+    correlated_padded = np.real(np.fft.ifft2(field_fft))
+    #----------------------------------------------------------------------------------------
 
     f_mean = np.mean(correlated_padded)
     f_std = np.std(correlated_padded)
@@ -328,22 +381,28 @@ def fracture_properties_function(Y, Z, geom, media):
     center_u = idx_u_spec + total_pad
     center_v = idx_v_spec + total_pad
     
-    valid_zone = std_large[center_u - pan_margin : center_u + pan_margin,
-                           center_v - pan_margin : center_v + pan_margin]
-    
-    # Find the value naturally closest to 0.0 in this safe zone
-    idx_zero_flat = np.argmin(np.abs(valid_zone))
-    local_u_zero, local_v_zero = np.unravel_index(idx_zero_flat, valid_zone.shape)
-    
-    # Map back to global coordinates within std_large
-    i_zero = (center_u - pan_margin) + local_u_zero
-    j_zero = (center_v - pan_margin) + local_v_zero
+    align_specular = False
+    if align_specular:
+        valid_zone = std_large[center_u - pan_margin : center_u + pan_margin,
+                            center_v - pan_margin : center_v + pan_margin]
+        
+        # Find the value naturally closest to 0.0 in this safe zone
+        idx_zero_flat = np.argmin(np.abs(valid_zone))
+        local_u_zero, local_v_zero = np.unravel_index(idx_zero_flat, valid_zone.shape)
+        
+        # Map back to global coordinates within std_large
+        i_zero = (center_u - pan_margin) + local_u_zero
+        j_zero = (center_v - pan_margin) + local_v_zero
+    else:
+        # Bypass alignment: strictly use the geometric center of the pad
+        i_zero = center_u
+        j_zero = center_v
     
     # Calculate crop boundaries
     u_start = i_zero - idx_u_spec
     v_start = j_zero - idx_v_spec
     
-    # Extract the final perfectly continuous, edge-artifact-free field!
+    # Extract the field over the fracture
     std_field_cropped = std_large[u_start : u_start + nu, v_start : v_start + nv]
 
     # Map through CDF
@@ -451,7 +510,14 @@ def get_fracture_mesh(geom: GeometryParams, media: MediaParams):
     elempos[4, :] = ny.ravel()
     elempos[5, :] = nz.ravel()
     
-    elempos[6, :] = geom.ellength ** 2.0 # need to be improved with actual area calculation for dip elements
+    # Area of the surface element above each projected cell: dS = sqrt(1 + f_y^2 + f_z^2) dy dz =
+    # ellength^2 * mag, with mag the norm of (1, -f_y, -f_z) above.
+    if geom.element_area == 'true':
+        elempos[6, :] = (geom.ellength ** 2.0) * mag.ravel()
+    elif geom.element_area == 'projected':
+        elempos[6, :] = geom.ellength ** 2.0
+    else:
+        raise ValueError(f"Unknown element_area: {geom.element_area}")
 
     thick, epsr, sigma = fracture_properties_function(Y_front, Z_front, geom, media)
     elempos[7, :] = thick.ravel()
@@ -477,7 +543,7 @@ def get_specular_point_numerical(src_pos, rec_pos, elempos):
     return P_spec, idx_min
 
 # -----------------------------------------------------------------------------
-# STANDARD UTILS (Core Math - Untouched)
+# STANDARD UTILS
 # -----------------------------------------------------------------------------
 def next_pow2(n): return 1 << (int(n - 1).bit_length())
 
@@ -505,6 +571,24 @@ def build_taper(critdist, ellength, tapw):
             slopx = np.linspace(0, np.pi, slop_len)
             tapy[slopstartel:] = ((np.cos(slopx) + 1.0) / 2.0)**2
     return tapx, tapy
+
+def edge_taper_weights(y, z, width, box):
+    """Cosine-squared edge taper weight per element, for approximating an unbounded fracture.
+
+    y, z are the element coordinates (elempos rows 1 and 2), width is the taper width in
+    metres and box = (ymin, ymax, zmin, zmax) is the meshed fracture extent. With d the
+    distance from an element to the nearest mesh edge, the weight is sin^2(pi d / (2 width))
+    for d < width and 1 otherwise: one over the interior, falling smoothly to zero at the
+    mesh boundary.
+    """
+    ymin, ymax, zmin, zmax = box
+    d = np.minimum(np.minimum(np.abs(y - ymin), np.abs(y - ymax)),
+                   np.minimum(np.abs(z - zmin), np.abs(z - zmax)))
+    w = np.ones_like(d)
+    inside = d < width
+    ratio = d[inside] / width          # same order of operations as ra_hpo_taper.py
+    w[inside] = np.sin(0.5 * np.pi * ratio) ** 2
+    return w
 
 def analytical_ricker_spectrum(omega, fc, amp=1.0):
     zeta = (np.pi ** 2) * (fc ** 2)
@@ -588,15 +672,41 @@ def visualize_setup(geom, srcpar, run, elempos, x1, yy, zz):
     plt.savefig('images/RA_HPO_Geometry_Surface.png', dpi=300)
 
 # -----------------------------------------------------------------------------
-# GPRMAX LOADER (Core Math - Untouched)
+# GPRMAX LOADER
 # -----------------------------------------------------------------------------
-def load_gprmax_plane(filename, comps=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"), target_res=0.04):
-    """Loads and decimates specified field components from a gprMax HDF5 output file."""
+def load_gprmax_plane(filename, comps=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
+                      target_res=None):
+    """Load field components from a gprMax HDF5 output file.
+
+    target_res is the receiver spacing to read at, in metres. None means use the plane
+    as recorded, which is the default: decimation belongs in the near-field model's
+    #rx_array spacing, not here. A value decimates a finely recorded plane to it.
+    """
     if isinstance(comps, str): comps = (comps,)
+    
     fields = {}
     with h5py.File(filename, 'r') as f:
+        # Converted plane (see convert_plane.py): one contiguous dataset per component, so the
+        # whole plane arrives in six sequential reads. A gprMax .out has no 'format_version'
+        # attribute and is read receiver by receiver below.
+        if 'format_version' in f.attrs:
+            stored_res = float(f.attrs['target_res'])
+            if target_res is not None and not np.isclose(stored_res, target_res):
+                raise ValueError(
+                    f"{filename} was converted at target_res={stored_res} m but "
+                    f"target_res={target_res} m was requested; convert again or pass "
+                    f"the matching value")
+            yy = f['yy'][:]
+            zz = f['zz'][:]
+            fields = {c: f[c][:] for c in comps if c in f}
+            logging.info(f"Converted plane: {zz.size}x{yy.size}, step={int(f.attrs['step'])}, "
+                         f"source={f.attrs['source_file']}")
+            return (fields, float(f.attrs['x1']), yy, zz,
+                    float(f.attrs['dt']), int(f.attrs['Nt']))
+
         # Read Global Attributes
         nrx = int(f.attrs['nrx'])
+
         dt = float(f.attrs['dt'])
         
         # Infer Geometry and Sorting
@@ -628,7 +738,8 @@ def load_gprmax_plane(filename, comps=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"), targ
             fast_len = int(np.round((y_max - y_min) / abs(step_native))) + 1
             slow_len = nrx // fast_len
             ny_native, nz_native = fast_len, slow_len
-            step = max(1, int(np.round(target_res / abs(step_native))))
+            step = (1 if target_res is None
+                    else max(1, int(np.round(target_res / abs(step_native)))))
             
             native_yy = np.linspace(p1[1], pN[1] if p1[1]<pN[1] else p1[1]-abs(step_native)*(ny_native-1), ny_native)
             if nz_native > 1:
@@ -640,7 +751,8 @@ def load_gprmax_plane(filename, comps=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"), targ
             fast_len = int(np.round((z_max - z_min) / abs(step_native))) + 1
             slow_len = nrx // fast_len
             nz_native, ny_native = fast_len, slow_len
-            step = max(1, int(np.round(target_res / abs(step_native))))
+            step = (1 if target_res is None
+                    else max(1, int(np.round(target_res / abs(step_native)))))
             
             native_zz = np.linspace(p1[2], pN[2] if p1[2]<pN[2] else p1[2]-abs(step_native)*(nz_native-1), nz_native)
             if ny_native > 1:
@@ -657,35 +769,46 @@ def load_gprmax_plane(filename, comps=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"), targ
         # Sparse Data Loading
         Nt = int(f.attrs['Iterations'])
         
-        for c in comps:
-            if f"/rxs/rx1/{c}" in f:
-                field_data = np.zeros((nz, ny, Nt), dtype=np.float32)
-                
-                if is_y_fast:
-                    for iz_new, iz_old in enumerate(range(0, nz_native, step)):
-                        row_start = iz_old * ny_native
-                        for iy_new, iy_old in enumerate(range(0, ny_native, step)):
-                            k = row_start + iy_old
-                            field_data[iz_new, iy_new, :] = f[f"/rxs/rx{k+1}/{c}"][:]
-                else: # Z-Fast
-                    for iy_new, iy_old in enumerate(range(0, ny_native, step)):
-                        row_start = iy_old * nz_native
-                        for iz_new, iz_old in enumerate(range(0, nz_native, step)):
-                            k = row_start + iz_old
-                            field_data[iz_new, iy_new, :] = f[f"/rxs/rx{k+1}/{c}"][:]
-                
-                fields[c] = field_data
+        # A gprMax .out stores one dataset per receiver per component. Each receiver group is
+        # opened once and all components are read from it, in increasing receiver index, so
+        # the reads move forward through the file.
+        present = [c for c in comps if f"/rxs/rx1/{c}" in f]
+        for c in present:
+            fields[c] = np.zeros((nz, ny, Nt), dtype=np.float32)
+
+        visits = []
+        if is_y_fast:
+            for iz_new, iz_old in enumerate(range(0, nz_native, step)):
+                row_start = iz_old * ny_native
+                for iy_new, iy_old in enumerate(range(0, ny_native, step)):
+                    visits.append((iz_new, iy_new, row_start + iy_old))
+        else: # Z-Fast
+            for iy_new, iy_old in enumerate(range(0, ny_native, step)):
+                row_start = iy_old * nz_native
+                for iz_new, iz_old in enumerate(range(0, nz_native, step)):
+                    visits.append((iz_new, iy_new, row_start + iz_old))
+        visits.sort(key=lambda v: v[2])
+
+        for iz_new, iy_new, k in visits:
+            group = f[f"/rxs/rx{k+1}"]      # path resolved once per receiver, not per read
+            for c in present:
+                # read_direct fills the destination row without allocating a temporary
+                group[c].read_direct(fields[c], dest_sel=np.s_[iz_new, iy_new, :])
 
     return fields, x1, yy, zz, dt, Nt
 
 # -----------------------------------------------------------------------------
-# FIELD PROPAGATORS (Core Math - Untouched)
+# FIELD PROPAGATORS
 # -----------------------------------------------------------------------------
+
 def build_padded_plane_spectrum(fields_t: Dict[str, np.ndarray],
                                 dt: float,
                                 dR_min: float,
                                 dR_max: float,
-                                c_med: float):
+                                c_med: float,
+                                cutoff_hz: float = None,
+                                row_block: int = 16):
+
     """
     Zero-mean -> pad (global) -> rFFT for each component present on the plane.
     Padding avoids circular wrap for delays in [dR_min/c_med, dR_max/c_med].
@@ -694,6 +817,7 @@ def build_padded_plane_spectrum(fields_t: Dict[str, np.ndarray],
       omega_pos: (Npos,)
       Npre, Nt_out, Nfft
     """
+    
     any_comp = next(iter(fields_t.values()))
     nz, ny, Nt = any_comp.shape
     tau_min = dR_min / c_med
@@ -703,26 +827,38 @@ def build_padded_plane_spectrum(fields_t: Dict[str, np.ndarray],
     Nt_out = Npre + (Nt + Npost)*2
     Nfft = 2 * next_pow2(Nt_out)
 
+    omega_pos = 2.0 * np.pi * np.fft.rfftfreq(Nfft, dt)
+
+    # Only the retained frequency bins are kept, and the plane is transformed one block of
+    # rows at a time, so the full-band spectrum of the whole plane is never held in memory.
+    # rfft and the mean act along axis 2 only, so blocking along iz does not change the result.
+    keep = (np.ones(omega_pos.size, dtype=bool) if cutoff_hz is None
+            else (omega_pos / (2.0 * np.pi)) <= cutoff_hz)
+    n_keep = int(keep.sum())
+
     Epos = {}
-    E_time_padded = {}
     for c, E in fields_t.items():
-        E0 = E - np.mean(E, axis=2, keepdims=True)
-        Epad = np.zeros((nz, ny, Nt_out), dtype=np.float32)
-        Epad[:, :, Npre:Npre+Nt] = E0
-        E_time_padded[c] = Epad
-        Epos[c] = np.fft.rfft(Epad, n=Nfft, axis=2) 
+        out = np.empty((nz, ny, n_keep), dtype=np.complex64)
+        for iz0 in range(0, nz, row_block):
+            iz1 = min(iz0 + row_block, nz)
+            block = E[iz0:iz1]
+            b0 = block - np.mean(block, axis=2, keepdims=True)
+            pad = np.zeros((iz1 - iz0, ny, Nt_out), dtype=np.float32)
+            pad[:, :, Npre:Npre+Nt] = b0
+            out[iz0:iz1] = np.fft.rfft(pad, n=Nfft, axis=2)[..., keep].astype(np.complex64)
+        Epos[c] = out
 
-    fpos = np.fft.rfftfreq(Nfft, dt)
-    omega_pos = 2.0 * np.pi * fpos
+    return Epos, omega_pos, keep, Npre, Nt_out, Nfft
 
-    return Epos, E_time_padded, omega_pos, Npre, Nt_out, Nfft
 
 def same_ray_propagate_point(Epos_plane: Dict[str, np.ndarray],
                              yy: np.ndarray, zz: np.ndarray, x1: float,
                              xs: float, ys: float, zs: float,
                              xe: float, ye: float, ze: float,
                              gamma_pos: np.ndarray,
-                             comps_present: Tuple[bool, bool, bool]) -> np.ndarray:
+                             comps_present: Tuple[bool, bool, bool],
+                             gamma_pos1: np.ndarray = None,   # TWO-MEDIUM: gamma_1 (acquisition medium)
+                             eamp: np.ndarray = None) -> np.ndarray:  # TWO-MEDIUM: y1/y2 for E
     """
     Ray-aligned sampling and along-ray propagation from plane x1 to element (xe,ye,ze).
     Returns E_cart(ω) as a 3 x Npos complex array [Ex; Ey; Ez];
@@ -738,7 +874,9 @@ def same_ray_propagate_point(Epos_plane: Dict[str, np.ndarray],
     lam = (x1 - xs) / denom
     y1m = ys + lam * (ye - ys)
     z1m = zs + lam * (ze - zs)
-
+    if not (yy[0] <= y1m <= yy[-1]) or not (zz[0] <= z1m <= zz[-1]):
+        return E_out
+    
     # Bilinear interpolation indices/weights
     iy0, wy = interp_weights_sorted(yy, y1m)
     iz0, wz = interp_weights_sorted(zz, z1m)
@@ -748,9 +886,15 @@ def same_ray_propagate_point(Epos_plane: Dict[str, np.ndarray],
     R1 = np.sqrt((x1 - xs)**2 + (y1m - ys)**2 + (z1m - zs)**2)
     dR = R2 - R1
 
-    attph = np.exp(-gamma_pos * dR) 
-    gR1 = gamma_pos * R1
-    gR2 = gamma_pos * R2
+    # ----------------------------------------------------------------------------
+    if gamma_pos1 is None: gamma_pos1 = gamma_pos
+    if eamp is None: eamp = 1.0
+    # gR1 uses gamma_1 (Medium-1 near-field shape at R1); gR2 uses gamma_2 (Medium-2 at R2)
+    gR1 = gamma_pos1 * R1
+    gR2 = gamma_pos  * R2
+    # Phase/attenuation: remove Medium-1 phase up to R1, add Medium-2 phase to R2
+    attph = np.exp(-(gamma_pos * R2 - gamma_pos1 * R1))
+    # ------------------------------------------------------------------------------
 
     # Helpers
     def blend(comp: str) -> np.ndarray:
@@ -768,7 +912,7 @@ def same_ray_propagate_point(Epos_plane: Dict[str, np.ndarray],
     # Ex, Ey: along-ray exact ratio
     P1 = 3.0 + 3.0 * gR1 + gR1 * gR1
     P2 = 3.0 + 3.0 * gR2 + gR2 * gR2
-    ratio_T = ((R1 / R2)**3) * (P2 / P1) * attph
+    ratio_T = ((R1 / R2)**3) * (P2 / P1) * attph * eamp  # TWO-MEDIUM: * (y1/y2)
 
     if hasEx:
         E1 = blend('Ex')
@@ -783,7 +927,7 @@ def same_ray_propagate_point(Epos_plane: Dict[str, np.ndarray],
     S2_num = ((3.0 * nzr * nzr - 1.0) * (1.0 + gR2)) + ((nzr * nzr - 1.0) * (gR2 * gR2))
     S1 = S1_num / (R1**3)
     S2 = S2_num / (R2**3)
-    ratio_Z = (S2 / S1) * attph
+    ratio_Z = (S2 / S1) * attph * eamp # TWO-MEDIUM: * (y1/y2)
     if hasEz:
         E1z = blend('Ez')
         E_out[2, :] = E1z * ratio_Z
@@ -795,7 +939,8 @@ def same_ray_propagate_H_dipole(Hpos_plane: Dict[str, np.ndarray],
                                 xs: float, ys: float, zs: float,
                                 xe: float, ye: float, ze: float,
                                 gamma_pos: np.ndarray,
-                                comps_present: Tuple[bool, bool, bool]) -> np.ndarray:
+                                comps_present: Tuple[bool, bool, bool],
+                                gamma_pos1: np.ndarray = None) -> np.ndarray:
     """
     Ray-aligned propagation specifically for the MAGNETIC FIELD (H) of a Z-directed Electric Dipole.
     
@@ -825,9 +970,11 @@ def same_ray_propagate_H_dipole(Hpos_plane: Dict[str, np.ndarray],
     R2 = np.sqrt((xe - xs)**2 + (ye - ys)**2 + (ze - zs)**2)
     R1 = np.sqrt((x1 - xs)**2 + (y1m - ys)**2 + (z1m - zs)**2)
     dR = R2 - R1
-    attph = np.exp(-gamma_pos * dR)
-    gR1 = gamma_pos * R1
-    gR2 = gamma_pos * R2
+    # --- split gamma; H carries NO y1/y2 amplitude factor ---
+    if gamma_pos1 is None: gamma_pos1 = gamma_pos
+    gR1 = gamma_pos1 * R1
+    gR2 = gamma_pos  * R2
+    attph = np.exp(-(gamma_pos * R2 - gamma_pos1 * R1))
 
     # --- H-FIELD SPECIFIC POLYNOMIALS ---
     # Theory: H ~ (1/r + 1/gr^2) ~ (gr + 1)/r^2
@@ -871,7 +1018,7 @@ def same_ray_propagate_H_dipole(Hpos_plane: Dict[str, np.ndarray],
     return H_out    
 
 # -----------------------------------------------------------------------------
-# KERNEL: Element Contribution (Core Math - Untouched)
+# KERNEL: Element Contribution
 # -----------------------------------------------------------------------------
 def element_contribution(iel, elempos, p: WorkerParams, media: MediaParams):
     """Calculates the scattering contribution (reaction integral) of a single fracture element."""
@@ -893,33 +1040,49 @@ def element_contribution(iel, elempos, p: WorkerParams, media: MediaParams):
     
     # Forward Fields (Ray-Aligned)
     E_inc = same_ray_propagate_point(
-        p.Epos, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz,
+        p.Epos_tx, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz,
         pos_el[0], pos_el[1], pos_el[2], p.gamma_pos,
-        ('Ex' in p.Epos, 'Ey' in p.Epos, 'Ez' in p.Epos)
+        ('Ex' in p.Epos_tx, 'Ey' in p.Epos_tx, 'Ez' in p.Epos_tx),
+        gamma_pos1=p.gamma_pos1, eamp=p.eamp   # TWO-MEDIUM
     )
     H_inc = same_ray_propagate_H_dipole(
-        p.Epos, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz, 
+        p.Epos_tx, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz, 
         pos_el[0], pos_el[1], pos_el[2], p.gamma_pos,
-        ('Hx' in p.Epos, 'Hy' in p.Epos, 'Hz' in p.Epos)
+        ('Hx' in p.Epos_tx, 'Hy' in p.Epos_tx, 'Hz' in p.Epos_tx),
+        gamma_pos1=p.gamma_pos1   # TWO-MEDIUM (no eamp for H)
     )
 
     # Reciprocal Fields
-    offset_vec = pos_rx - pos_tx
-    pos_el_virtual = pos_el - offset_vec
-    
-    # FIX: Use p.srcx instead of p.xs
-    denom = (pos_el_virtual[0] - p.srcx)
-    if np.isclose(denom, 0.0): return np.zeros_like(p.omega_pos, dtype=complex)
-    
+    if p.use_shift:
+        # SHIFT MODE: TX and RX plane files are identical.
+        # Translation invariance: the field of a source at rec observed at pos_el equals
+        # the forward field (source at src) observed at pos_el - (rec - src). We therefore
+        # reuse the FORWARD plane/spectrum (p.Epos_tx, p.yy, p.zz, p.x1) with the SOURCE
+        # coordinates and evaluate at the virtual element pos_el_rx. No second FFT needed.
+        offset_vec = np.array([p.recx - p.srcx, p.recy - p.srcy, p.recz - p.srcz])
+        pos_el_rx = pos_el - offset_vec
+        rx_Epos, rx_yy, rx_zz, rx_x1 = p.Epos_tx, p.yy, p.zz, p.x1
+        rx_sx, rx_sy, rx_sz = p.srcx, p.srcy, p.srcz
+    else:
+        # LOAD MODE (new-version behaviour): use the separately loaded RX plane.
+        pos_el_rx = pos_el
+        rx_Epos, rx_yy, rx_zz, rx_x1 = p.Epos_rx, p.r_yy, p.r_zz, p.r_x1
+        rx_sx, rx_sy, rx_sz = p.recx, p.recy, p.recz
+
+    denom_rx = (pos_el_rx[0] - rx_sx)
+    if np.isclose(denom_rx, 0.0): return np.zeros_like(p.omega_pos, dtype=complex)
+
     E_rx = same_ray_propagate_point(
-        p.Epos, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz,
-        pos_el_virtual[0], pos_el_virtual[1], pos_el_virtual[2], p.gamma_pos, 
-        ('Ex' in p.Epos, 'Ey' in p.Epos, 'Ez' in p.Epos)
+        rx_Epos, rx_yy, rx_zz, rx_x1, rx_sx, rx_sy, rx_sz,
+        pos_el_rx[0], pos_el_rx[1], pos_el_rx[2], p.gamma_pos, 
+        ('Ex' in rx_Epos, 'Ey' in rx_Epos, 'Ez' in rx_Epos),
+        gamma_pos1=p.gamma_pos1, eamp=p.eamp  
     )
     H_rx = same_ray_propagate_H_dipole(
-        p.Epos, p.yy, p.zz, p.x1, p.srcx, p.srcy, p.srcz,
-        pos_el_virtual[0], pos_el_virtual[1], pos_el_virtual[2], p.gamma_pos, 
-        ('Hx' in p.Epos, 'Hy' in p.Epos, 'Hz' in p.Epos)
+        rx_Epos, rx_yy, rx_zz, rx_x1, rx_sx, rx_sy, rx_sz,
+        pos_el_rx[0], pos_el_rx[1], pos_el_rx[2], p.gamma_pos, 
+        ('Hx' in rx_Epos, 'Hy' in rx_Epos, 'Hz' in rx_Epos),
+        gamma_pos1=p.gamma_pos1   
     )
 
     # Reflection (Airy/Sommerfeld Slab)
@@ -933,6 +1096,12 @@ def element_contribution(iel, elempos, p: WorkerParams, media: MediaParams):
         n_hat = -n_hat
         cos_theta = -cos_theta
     cos_theta = np.clip(cos_theta, 0.0, 1.0)
+    if p.incidence == "perfreq":
+        # Diagnostic: one direction per frequency. n_hat keeps the orientation chosen from the
+        # band average above, and cos_theta becomes an array, which the coefficient formulas
+        # below accept unchanged because they are elementwise in frequency.
+        k_f, spread = per_frequency_directions(np.real(S_vec), k_dir)
+        cos_theta = np.clip(-(n_hat @ k_f), 0.0, 1.0)
     sin_theta = np.sqrt(1.0 - cos_theta**2)
 
     eta2_scalar = np.sqrt(MU0 / (p.eps0_local * p.epsr2))
@@ -964,22 +1133,29 @@ def element_contribution(iel, elempos, p: WorkerParams, media: MediaParams):
     R_TM = (r12_tm + r23_tm * exp_term) / (1.0 + r12_tm * r23_tm * exp_term)
 
     # Reconstruct Fields
-    te_vec_raw = np.cross(k_dir, n_hat)
-    te_len = np.linalg.norm(te_vec_raw)
-    
-    if te_len < 1e-9:
-        E_ref = E_inc * R_TE
+    if p.incidence == "perfreq":
+        E_ref, H_ref = reflect_per_frequency(E_inc, k_f, n_hat, R_TE, R_TM, eta2_scalar)
     else:
-        e_te = te_vec_raw / te_len
-        e_tm_inc = np.cross(e_te, k_dir)
-        E_inc_TE = np.dot(e_te, E_inc)
-        E_inc_TM = np.dot(e_tm_inc, E_inc)
-        k_ref = k_dir - 2 * np.dot(k_dir, n_hat) * n_hat
-        e_tm_ref = np.cross(e_te, k_ref)
-        E_ref = (e_te[:, None] * (E_inc_TE * R_TE)[None, :]) + \
-                (e_tm_ref[:, None] * (E_inc_TM * R_TM)[None, :])
+        te_vec_raw = np.cross(k_dir, n_hat)
+        te_len = np.linalg.norm(te_vec_raw)
 
-    H_ref = np.cross(k_ref, E_ref.T).T / eta2_scalar
+        # Specular direction, needed by H_ref in both branches: at normal incidence (te_len -> 0)
+        # the TE/TM split degenerates and is skipped, but the reflected ray is k_ref = -k_dir.
+        k_ref = k_dir - 2 * np.dot(k_dir, n_hat) * n_hat
+
+        if te_len < 1e-9:
+            # Normal incidence: TE and TM coincide, so one coefficient applies to the whole field.
+            E_ref = E_inc * R_TE
+        else:
+            e_te = te_vec_raw / te_len
+            e_tm_inc = np.cross(e_te, k_dir)
+            E_inc_TE = np.dot(e_te, E_inc)
+            E_inc_TM = np.dot(e_tm_inc, E_inc)
+            e_tm_ref = np.cross(e_te, k_ref)
+            E_ref = (e_te[:, None] * (E_inc_TE * R_TE)[None, :]) + \
+                    (e_tm_ref[:, None] * (E_inc_TM * R_TM)[None, :])
+
+        H_ref = np.cross(k_ref, E_ref.T).T / eta2_scalar
     Js = np.cross(n_hat, H_ref.T).T
     Ms = np.cross(E_ref.T, n_hat).T
 
@@ -987,36 +1163,106 @@ def element_contribution(iel, elempos, p: WorkerParams, media: MediaParams):
     term2 = np.sum(H_rx * Ms, axis=0) 
     reaction = 1.0 * (term1 - term2) * elempos[6, iel] 
 
-    # Optional Tapering----------------------------------------------------------
-    # reaction *= tapval
-    # ---------------------------------------------------------------------------
+    # No taper is applied here. The optional edge taper (--edge_taper) multiplies each
+    # element's contribution by its weight in run_simulation, after this loop. The radial taper
+    # of build_taper() (critdist, tapw) is off by default.
 
+    if p.incidence == "perfreq":
+        return reaction, spread
     return reaction
 
+
+def per_frequency_directions(S_re: np.ndarray, k_band: np.ndarray):
+    """Per-frequency incidence directions for the "perfreq" diagnostic.
+
+    S_re is the real Poynting vector Re(E x H*) at the element, shape (3, Nf), and k_band the
+    unit band-averaged direction that the method applies at every frequency. Each
+    frequency's direction is S_re normalized. Where |S_re| is below 1e-6 of its largest value
+    over the band, the direction is noise and carries no energy, so the band direction is kept.
+
+    Returns the directions, shape (3, Nf), and the angular spread around k_band in radians: the
+    root-mean-square angle weighted by |S_re|, the power at each frequency.
+    """
+    mag = np.linalg.norm(S_re, axis=0)
+    k_f = np.repeat(k_band[:, None], S_re.shape[1], axis=1)
+    peak = mag.max() if mag.size else 0.0
+    if peak <= 0.0:
+        return k_f, 0.0
+    ok = mag > 1e-6 * peak
+    k_f[:, ok] = S_re[:, ok] / mag[ok]
+    ang = np.arccos(np.clip(k_band @ k_f, -1.0, 1.0))
+    spread = float(np.sqrt(np.sum(mag * ang**2) / np.sum(mag)))
+    return k_f, spread
+
+
+def reflect_per_frequency(E_inc, k_f, n_hat, R_TE, R_TM, eta2_scalar):
+    """Reflected E and H with a separate incidence direction at each frequency.
+
+    The same construction as the band path of element_contribution, with k_dir, the TE/TM
+    unit vectors and the specular direction k_ref carried as (3, Nf) arrays. Where a
+    frequency's ray is normal to the element, TE and TM coincide and R_TE applies to the
+    whole field, as in the band path.
+    """
+    k_ref = k_f - 2.0 * (n_hat @ k_f)[None, :] * n_hat[:, None]
+    te_raw = np.cross(k_f.T, n_hat).T
+    te_len = np.linalg.norm(te_raw, axis=0)
+    normal = te_len < 1e-9
+    e_te = te_raw / np.where(normal, 1.0, te_len)[None, :]
+    e_tm_inc = np.cross(e_te.T, k_f.T).T
+    e_tm_ref = np.cross(e_te.T, k_ref.T).T
+    E_inc_TE = np.sum(e_te * E_inc, axis=0)
+    E_inc_TM = np.sum(e_tm_inc * E_inc, axis=0)
+    E_ref = e_te * (E_inc_TE * R_TE)[None, :] + e_tm_ref * (E_inc_TM * R_TM)[None, :]
+    if np.any(normal):
+        E_ref[:, normal] = E_inc[:, normal] * R_TE[normal]
+    H_ref = np.cross(k_ref.T, E_ref.T).T / eta2_scalar
+    return E_ref, H_ref
+
 # -----------------------------------------------------------------------------
-# MAIN DRIVER (Refactored for flow and logging)
+# MAIN DRIVER
 # -----------------------------------------------------------------------------
 def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParams, run: RuntimeParams):
     """Executes the high-level RA-HPO computational flow."""
     start_t = time.time()
-    
+    _p0 = time.perf_counter()   # per-phase timing
+
     xs, ys, zs = srcpar.src_pos
     xr, yr, zr = srcpar.rec_pos
-    
+
     logging.info("Generating fracture mesh...")
     elempos = get_fracture_mesh(geom, media)
     numelem = elempos.shape[1]
-    logging.info(f"Generated {numelem} elements.")
+    logging.info(f"Generated {numelem} elements, element area '{geom.element_area}' "
+                 f"(total {np.sum(elempos[6, :]):.6f} m^2).")
 
     logging.info("Finding specular point...")
     P_spec, idx_spec = get_specular_point_numerical(srcpar.src_pos, srcpar.rec_pos, elempos)
     logging.info(f"Specular Point found at: {P_spec}")
-    
-    logging.info("Loading Field Planes...")
-    fields_t, x1, yy, zz, dt, Nt = load_gprmax_plane(run.plane_file, run.comps)
-    logging.info(f"Loaded plane at x1={x1:.3f} m: comps={list(fields_t.keys())}, dt={dt*1e9:.3f} ns, Nt={Nt}, ny={yy.size}, nz={zz.size}")
+    _p_mesh = time.perf_counter()   # end phase: mesh + specular
 
-    visualize_setup(geom, srcpar, run, elempos, x1, yy, zz)
+    logging.info("Loading Field Planes...")
+    fields_t, x1, yy, zz, dt, Nt = load_gprmax_plane(run.tx_plane_file, run.comps,
+                                                     target_res=run.target_res)
+
+    # Identical TX/RX files -> reciprocal field via axial shift of the forward field
+    # Different files -> load the reciprocal plane from its own file.
+    use_shift = (os.path.abspath(run.rx_plane_file) == os.path.abspath(run.tx_plane_file))
+    if use_shift:
+        logging.info("TX and RX plane files identical -> reciprocal field via axial shift of forward field.")
+        reciprocal_fields_t, r_x1, r_yy, r_zz, r_dt, r_Nt = fields_t, x1, yy, zz, dt, Nt
+    else:
+        reciprocal_fields_t, r_x1, r_yy, r_zz, r_dt, r_Nt = load_gprmax_plane(
+            run.rx_plane_file, run.comps, target_res=run.target_res)
+
+    if not np.isclose(dt, r_dt):
+        raise ValueError("Time steps of forward and reciprocal planes must match.")
+
+    logging.info(f"Loaded TX plane at x1={x1:.3f} m: comps={list(fields_t.keys())}, dt={dt*1e9:.3f} ns, Nt={Nt}, ny={yy.size}, nz={zz.size}")
+    logging.info(f"Loaded RX plane at r_x1={r_x1:.3f} m: comps={list(reciprocal_fields_t.keys())}, dt={r_dt*1e9:.3f} ns, Nt={r_Nt}, ny={r_yy.size}, nz={r_zz.size}")
+    _p_load = time.perf_counter()   # end phase: plane load / I/O
+
+    if not run.no_viz:
+        visualize_setup(geom, srcpar, run, elempos, x1, yy, zz)
 
     eps = EPS0 * media.epsr2
     mu  = MU0
@@ -1024,33 +1270,69 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
     v = 1.0 / np.sqrt(mu * eps)
     c_med = v
 
-    denom = elempos[0,:] - xs
-    valid = np.abs(denom) > 1e-9
-    el_v = elempos[:, valid]
-    lam = (x1 - xs) / (el_v[0,:] - xs)
-    y1m = ys + lam * (el_v[1,:] - ys)
-    z1m = zs + lam * (el_v[2,:] - zs)
-    
-    R2 = np.sqrt((el_v[0,:] - xs)**2 + (el_v[1,:] - ys)**2 + (el_v[2,:] - zs)**2)
-    R1 = np.sqrt((x1 - xs)**2 + (y1m - ys)**2 + (z1m - zs)**2)
-    dR_vals = R2 - R1
-    
-    dR_min = float(np.min(dR_vals))
-    dR_max = float(np.max(dR_vals))
+    eps1 = EPS0 * media.epsr1
+    sigma1 = media.sigma_rock1
+    v1 = 1.0 / np.sqrt(mu * eps1) 
 
-    Epos, E_time_padded, omega_pos, Npre, Nt_out, Nfft = build_padded_plane_spectrum(fields_t, dt, dR_min, dR_max, c_med)
+    # TX Delays
+    denom_tx = elempos[0,:] - xs
+    valid_tx = np.abs(denom_tx) > 1e-9
+    el_v_tx = elempos[:, valid_tx]
+    lam_tx = (x1 - xs) / (el_v_tx[0,:] - xs)
+    y1m_tx = ys + lam_tx * (el_v_tx[1,:] - ys)
+    z1m_tx = zs + lam_tx * (el_v_tx[2,:] - zs)
+    R2_tx = np.sqrt((el_v_tx[0,:] - xs)**2 + (el_v_tx[1,:] - ys)**2 + (el_v_tx[2,:] - zs)**2)
+    R1_tx = np.sqrt((x1 - xs)**2 + (y1m_tx - ys)**2 + (z1m_tx - zs)**2)
+    # effective dR so that dR/c_med equals the true delay R2/v2 - R1/v1
+    dR_vals_tx = c_med * (R2_tx / v - R1_tx / v1)
+
+    # RX Delays
+    denom_rx = elempos[0,:] - xr
+    valid_rx = np.abs(denom_rx) > 1e-9
+    el_v_rx = elempos[:, valid_rx]
+    lam_rx = (r_x1 - xr) / (el_v_rx[0,:] - xr)
+    y1m_rx = yr + lam_rx * (el_v_rx[1,:] - yr)
+    z1m_rx = zr + lam_rx * (el_v_rx[2,:] - zr)
+    R2_rx = np.sqrt((el_v_rx[0,:] - xr)**2 + (el_v_rx[1,:] - yr)**2 + (el_v_rx[2,:] - zr)**2)
+    R1_rx = np.sqrt((r_x1 - xr)**2 + (y1m_rx - yr)**2 + (z1m_rx - zr)**2)
+    # effective dR so that dR/c_med equals the true delay R2/v2 - R1/v1
+    dR_vals_rx = c_med * (R2_rx / v - R1_rx / v1)
+    
+    dR_min = float(min(np.min(dR_vals_tx), np.min(dR_vals_rx)))
+    dR_max = float(max(np.max(dR_vals_tx), np.max(dR_vals_rx)))
+
+    
+    # The cut-off is applied inside, so the spectra come back already reduced.
+    cutoff_high = 8.0 * FC
+    Epos_small_tx, omega_pos, valid_mask_freqs, Npre, Nt_out, Nfft = \
+        build_padded_plane_spectrum(fields_t, dt, dR_min, dR_max, c_med,
+                                    cutoff_hz=cutoff_high)
+    if use_shift:
+        Epos_small_rx = Epos_small_tx
+    else:
+        Epos_small_rx, _, _, _, _, _ = build_padded_plane_spectrum(
+            reciprocal_fields_t, r_dt, dR_min, dR_max, c_med, cutoff_hz=cutoff_high)
+
+
     gamma_pos = gamma_of_omega(omega_pos, mu, eps, sigma)
 
-    cutoff_high = 8.0 * FC
-    freqs = omega_pos / (2*np.pi)
-    valid_mask_freqs = freqs <= cutoff_high
+    gamma_pos1 = gamma_of_omega(omega_pos, mu, eps1, sigma1)
+    eta1_pos = sigma1 + 1j * omega_pos * eps1   # y1 = sigma1 + j w eps1
+    eta2_pos = sigma  + 1j * omega_pos * eps    # y2 = sigma2 + j w eps2
+    eamp_pos = np.divide(eta1_pos, eta2_pos,
+                         out=np.zeros_like(eta1_pos),
+                         where=(eta2_pos != 0))  # y1/y2 (safe at w=0)
 
+    
+    # build_padded_plane_spectrum already applied the mask, so only the scalar frequency axes
+    # still need reducing. valid_mask_freqs is kept because the
+    # deconvolution below scatters the result back into the full-length spectrum.
     omega_pos_small = omega_pos[valid_mask_freqs]
     gamma_pos_small = gamma_pos[valid_mask_freqs]
+    gamma_pos1_small = gamma_pos1[valid_mask_freqs]
+    eamp_small = eamp_pos[valid_mask_freqs].astype(np.complex64)
 
-    Epos_small = {}
-    for comp, data in Epos.items():
-        Epos_small[comp] = data[:, :, valid_mask_freqs].astype(np.complex64)
+
 
     logging.info(f"Original Freqs: {len(omega_pos)} points (up to {omega_pos[-1]/2/np.pi/1e9:.1f} GHz), Nfft={Nfft}")
     logging.info(f"Reduced Freqs:  {len(omega_pos_small)} points (up to {cutoff_high/1e6:.1f} MHz)")
@@ -1058,16 +1340,22 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
     tapx, tapy = build_taper(run.critdist, geom.ellength, run.tapw)
 
     params = WorkerParams(
-        Epos=Epos_small, E_time=E_time_padded, yy=yy, zz=zz, x1=x1,
-        omega_pos=omega_pos_small, gamma_pos=gamma_pos_small, dt=dt,
+        Epos_tx=Epos_small_tx, Epos_rx=Epos_small_rx,
+        
+        yy=yy, zz=zz, x1=x1, r_yy=r_yy, r_zz=r_zz, r_x1=r_x1,
+        omega_pos=omega_pos_small, gamma_pos=gamma_pos_small, 
+        gamma_pos1=gamma_pos1_small, eamp=eamp_small,
+        dt=dt,
         Npre=Npre, Nt_out=Nt_out, Nfft=Nfft, v=v,
         epsr2=media.epsr2, eps0_local=EPS0,
         srcx=xs, srcy=ys, srcz=zs,
         recx=xr, recy=yr, recz=zr,
         spec_x=P_spec[0], spec_y=P_spec[1], spec_z=P_spec[2],
         ellength=geom.ellength, tapx=tapx, tapy=tapy, critdist=run.critdist,
-        doradpat=0, pws_interpor=None
+        doradpat=0, pws_interpor=None, use_shift=use_shift,
+        incidence=run.incidence,
     )
+    _p_fft = time.perf_counter()   # end phase: FFT / spectrum build (+ ray-delay prep)
 
     logging.info("Starting parallel reaction integral computation...")
     if HAVE_JOBLIB and run.cores != 1:
@@ -1077,8 +1365,55 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
     else:
         results = [element_contribution(iel, elempos, params, media) for iel in range(numelem)]
 
-    Erec_raw_small = np.sum(np.array(results), axis=0)  
+    if run.incidence == "perfreq":
+        # Elements that return early give a bare zero spectrum, with no spread to report.
+        spread = np.array([r[1] if isinstance(r, tuple) else np.nan for r in results])
+        results = [r[0] if isinstance(r, tuple) else r for r in results]
+
+    results_arr = np.array(results)
+
+    if run.incidence == "perfreq":
+        # Weight each element's spread by its contribution, so that elements carrying little
+        # of the trace do not dominate the summary.
+        w = np.sum(np.abs(results_arr), axis=1)
+        good = np.isfinite(spread) & (w > 0)
+        deg = np.degrees(spread[good])
+        wmean = float(np.sum(w[good] * deg) / np.sum(w[good])) if np.any(good) else float("nan")
+        logging.info(
+            f"[INCIDENCE] per-frequency directions, power-weighted rms spread around the band "
+            f"average over {int(np.count_nonzero(good))} elements: median {np.median(deg):.3f} deg, "
+            f"95th percentile {np.percentile(deg, 95):.3f} deg, max {np.max(deg):.3f} deg, "
+            f"contribution-weighted mean {wmean:.3f} deg")
+        run.incidence_spread = (elempos[0:3, :].copy(), spread, w)
+
+    # Dropped-element diagnostic. An element contributes exactly zero only
+    # where the kernel returns early: degenerate source- or receiver-to-element distances, a
+    # vanishing plane-crossing denominator, or a ray whose crossing point falls outside the
+    # recorded plane, which `same_ray_propagate_point` reports by returning a zero field. All of
+    # those are silent, and the last one is a real modeling limit rather than a numerical corner:
+    # it bounds how far a receiver can sit from the plane before part of the fracture stops
+    # contributing. Reported as a count so a run cannot quietly integrate over fewer elements
+    # than the mesh contains.
+    n_dropped = int(np.count_nonzero(~results_arr.any(axis=1)))
+    logging.info(
+        f"[DROPPED] {n_dropped} of {numelem} elements ({100.0 * n_dropped / numelem:.3f}%) "
+        f"contributed exactly zero (degenerate ray geometry, or ray outside the recorded plane)"
+    )
+
+    # Optional edge taper, skipped entirely at the default edge_taper = 0.0
+    if run.edge_taper > 0.0:
+        box = (geom.ymin, geom.ymax, geom.zmin, geom.zmax)
+        w_tap = edge_taper_weights(elempos[1, :], elempos[2, :], run.edge_taper, box)
+        results_arr *= w_tap[:, None]
+        logging.info(
+            f"[TAPER] cos^2 edge taper, width {run.edge_taper:g} m, mesh y [{box[0]:g}, {box[1]:g}] "
+            f"z [{box[2]:g}, {box[3]:g}] m: {int(np.count_nonzero(w_tap < 1.0))} of {numelem} "
+            f"elements weighted below 1, mean weight {float(np.mean(w_tap)):.4f}")
+
+    Erec_raw_small = np.sum(results_arr, axis=0)
+    del results_arr
     logging.debug(f"Max raw spectrum amplitude: {np.max(np.abs(Erec_raw_small))}")
+    _p_integ = time.perf_counter()   # end phase: parallel element integration
 
     scaling_factor = dt
     Erec_raw_small *= scaling_factor
@@ -1095,7 +1430,7 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
     deconvolved_pos = Erec_nrml_small * np.conj(S_normalized) / (np.abs(S_normalized)**2 + water_level)
 
     freqs_small = omega_pos_small / (2*np.pi)
-    f_sigma = 5.0 * FC
+    f_sigma = 8.0 * FC
     gaussian_window = np.exp(-0.5 * (freqs_small / f_sigma)**2)
     deconvolved_pos *= gaussian_window
     
@@ -1104,11 +1439,20 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
     E_time_full = np.fft.irfft(deconvolved_full, n=Nfft)
     trace = E_time_full[:Nt_out].real
     tvec = (np.arange(Nt_out) - Npre) * dt
+    _p_synth = time.perf_counter()   # end phase: deconvolution + iFFT + synthesis
 
     logging.info(f"Shape of Erec_raw_small: {Erec_raw_small.shape}")
     logging.info(f"Size of trace={trace.size}, tvec[0]={tvec[0]*1e9:.3f} ns, tvec[-1]={tvec[-1]*1e9:.3f} ns")
+    # Per-phase breakdown: (i) plane load/IO, (ii) FFT/spectrum build,
+    # (iii) parallel element integration, (iv) deconvolution + iFFT + synthesis. Only (iii)
+    # varies with the number of workers, so the constant phases dominate as workers are added.
+    logging.info(
+        f"[PHASE] cores={run.cores} mesh={_p_mesh - _p0:.3f} load={_p_load - _p_mesh:.3f} "
+        f"fft={_p_fft - _p_load:.3f} integ={_p_integ - _p_fft:.3f} synth={_p_synth - _p_integ:.3f} "
+        f"total={_p_synth - _p0:.3f}s"
+    )
     logging.info(f"Simulation completed in {time.time() - start_t:.2f}s")
-    
+
     return tvec, trace
 
 def save_trace(filename, tvec, trace):
@@ -1120,50 +1464,171 @@ def save_trace(filename, tvec, trace):
 # ENTRY POINT
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # --- Standardize Environment & Logging ---
+    # --- Output directories, created after the arguments are parsed ---
     image_dir = "./images"
     log_dir = "./logs"
     data_dir = "./npz_data"
+
+    # Logging is configured after the arguments are parsed, so that each run writes its own log
+    # file, named after --output_name. Nothing may log before that.
+
+    # --- Setup Arguments ---
+    parser = argparse.ArgumentParser(
+        description="RA-HPO: Ray-Aligned Hybrid Physical Optics forward solver for borehole radar. "
+                    "Every optional flag defaults to the configuration used in the paper.")
+    g = parser.add_argument_group("reference planes")
+    g.add_argument("--tx_plane_file", type=str, required=True,
+                   help="Reference plane of the transmitter: a gprMax .out file or a plane "
+                        "converted with convert_plane.py.")
+    g.add_argument("--rx_plane_file", type=str, required=True,
+                   help="Reference plane of the receiver. Pass the same file as --tx_plane_file "
+                        "to obtain the reciprocal field by axial shift of the forward field.")
+    g.add_argument("--target_res", type=float, default=None,
+                   help="Receiver spacing in metres to read the plane at. Default: the plane "
+                        "as recorded. Set it to read a finely recorded plane at a coarser "
+                        "spacing (0.04 for the 0.01 m planes of the paper).")
+    g.add_argument("--plane_epsr", type=float, default=None,
+                   help="Relative permittivity of the host in which the plane was recorded, "
+                        "for re-radiation into a different host (two-medium mode). Default: "
+                        "the background permittivity, 9.0.")
+
+    g = parser.add_argument_group("fracture")
+    g.add_argument("--fracture_type", type=str, default=None,
+                   choices=["planar", "planar-tilted", "piecewise_yz", "sinusoidal_3d"],
+                   help="Fracture shape (default planar). planar-tilted is the 8 degree plane, "
+                        "piecewise_yz the concave bowl with a flat center, sinusoidal_3d the "
+                        "biaxial corrugation.")
+    g.add_argument("--amplitude", type=float, default=None,
+                   help="Corrugation amplitude A in metres for sinusoidal_3d (default 0.25).")
+    g.add_argument("--planethick", type=float, default=None,
+                   help="Fracture aperture in metres (default 0.04).")
+    g.add_argument("--fracture_extent", type=float, nargs=4, default=None,
+                   metavar=("YMIN", "YMAX", "ZMIN", "ZMAX"),
+                   help="Meshed extent of the fracture in metres (default 1 9 1 9). For the "
+                        "non-planar shapes it also sets the lateral periods.")
+    g.add_argument("--ellength", type=float, default=None,
+                   help="Fracture element size in metres (default 0.01).")
+    g.add_argument("--element_area", type=str, default=None, choices=["true", "projected"],
+                   help="Element weight in the reaction integral: 'true' (default) is the "
+                        "surface area of each element, ellength^2/|n_x|; 'projected' is "
+                        "ellength^2. Identical on planar fractures.")
+    g.add_argument("--edge_taper", type=float, default=0.0,
+                   help="Width in metres of a cosine-squared taper at the edges of the meshed "
+                        "fracture, to approximate an unbounded fracture (default 0, no taper).")
+
+    g = parser.add_argument_group("fracture fill")
+    g.add_argument("--fluid_epsr", type=float, default=None,
+                   help="Relative permittivity of the fracture fluid (default 80.0, water).")
+    g.add_argument("--fluid_sigma", type=float, default=None,
+                   help="Conductivity of the fracture fluid in S/m (default 0.5).")
+    g.add_argument("--heterogeneous", action="store_true",
+                   help="Read a heterogeneous fill from --h5_geom, --syz_geom and --mat_file, "
+                        "as written by generate_heter_geometry_h5_and_materials.py.")
+    g.add_argument("--h5_geom", type=str, default="",
+                   help="Geometry volume of the heterogeneous fill (with --heterogeneous).")
+    g.add_argument("--syz_geom", type=str, default="",
+                   help="Fracture-plane property map of the heterogeneous fill (with --heterogeneous).")
+    g.add_argument("--mat_file", type=str, default="",
+                   help="Materials file of the heterogeneous fill (with --heterogeneous).")
+
+    g = parser.add_argument_group("acquisition")
+    g.add_argument("--src_pos", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
+                   help="Source position in metres (default 0.5 5.0 5.5). The reference plane "
+                        "is recorded for this position, so move it only along the borehole axis.")
+    g.add_argument("--rec_pos", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
+                   help="Receiver position in metres (default 0.5 5.0 4.5). On the borehole "
+                        "axis the reciprocal field follows by axial shift.")
+
+    g = parser.add_argument_group("run")
+    g.add_argument("--output_name", type=str, default="rahpo_trace",
+                   help="Base name of the .npz trace, the PNG and the log file.")
+    g.add_argument("--cores", type=int, default=24,
+                   help="Number of worker processes for the element integration (default 24).")
+    g.add_argument("--incidence", type=str, default="band", choices=["band", "perfreq"],
+                   help="'band' (default): one incidence direction per element from the "
+                        "band-averaged Poynting vector. 'perfreq': diagnostic that recomputes "
+                        "it at every frequency and also writes <output_name>_incidence.npz.")
+    g.add_argument("--no_viz", action="store_true",
+                   help="Skip the diagnostic 3D geometry plot.")
+
+    args = parser.parse_args()
     for d in [image_dir, log_dir, data_dir]:
         os.makedirs(d, exist_ok=True)
 
+    # --- Logging, named after this run ---
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.FileHandler(os.path.join(log_dir, "ra_hpo.log")), logging.StreamHandler(sys.stdout)]
+        handlers=[
+            logging.FileHandler(os.path.join(log_dir, f"{args.output_name}.log"), mode="w"),
+            logging.StreamHandler(sys.stdout),
+        ],
     )
+    logging.info(f"RA-HPO run '{args.output_name}', log written to "
+                 f"{os.path.join(log_dir, args.output_name + '.log')}")
 
     if not HAVE_JOBLIB:
         logging.warning("Joblib not found. Running in strictly serial mode.")
 
-    # --- Setup Arguments ---
-    parser = argparse.ArgumentParser(description="RA-HPO: Ray-Aligned Hybrid Physical Optics Method")
-    parser.add_argument("--plane_file", type=str, default="3D_8x10x10-shifted_nofrac_planex3_h0pt01.out",
-                        help="Path to the gprMax reference plane HDF5 file.")
-    parser.add_argument("--h5_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/geom_OnHeter_sig10_highVar.h5",
-                        help="Path to geometry HDF5 file.")
-    parser.add_argument("--syz_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/Syz_OnHeter_sig10_highVar.h5",
-                        help="Path to stochastic perturbation HDF5 file.")
-    parser.add_argument("--mat_file", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/mat_OnHeter_sig10_highVar.txt",
-                        help="Path to the materials text file.")
-    parser.add_argument("--cores", type=int, default=24, help="Number of CPU cores for parallel execution.")
-    parser.add_argument("--output_name", type=str, default="RA_HPO_BH_trace", help="Base name for the output files.")
-    
-    args = parser.parse_args()
-
     # --- Initialize Parameters ---
-    media = MediaParams()
-    srcpar = SourceParams()
+    if args.heterogeneous:
+        missing = [n for n in (args.h5_geom, args.syz_geom, args.mat_file)
+                   if not n or not os.path.exists(n)]
+        if missing:
+            parser.error("--heterogeneous needs existing --h5_geom, --syz_geom and --mat_file; "
+                         f"missing: {missing}")
+
+    # A dataclass default is overridden only when its flag is given, so omitting a flag keeps
+    # the configuration of the paper.
+    media_overrides = {}
+    if args.fluid_epsr is not None:
+        media_overrides["epsr_plane"] = args.fluid_epsr
+    if args.fluid_sigma is not None:
+        media_overrides["sigma_water"] = args.fluid_sigma
+    if args.plane_epsr is not None:
+        media_overrides["epsr1"] = args.plane_epsr
+    media = MediaParams(**media_overrides)
+
+    src_overrides = {}
+    if args.src_pos is not None:
+        src_overrides["src_pos"] = tuple(args.src_pos)
+    if args.rec_pos is not None:
+        src_overrides["rec_pos"] = tuple(args.rec_pos)
+    srcpar = SourceParams(**src_overrides)
     
+    geom_overrides = {}
+    if args.heterogeneous:
+        geom_overrides["is_heterogeneous"] = True
+        geom_overrides["load_from_file"] = True
+    if args.ellength is not None:
+        geom_overrides["ellength"] = args.ellength
+    if args.fracture_type is not None:
+        geom_overrides["fracture_type"] = args.fracture_type
+    if args.amplitude is not None:
+        geom_overrides["amplitude"] = args.amplitude
+    if args.planethick is not None:
+        geom_overrides["planethick"] = args.planethick
+    if args.element_area is not None:
+        geom_overrides["element_area"] = args.element_area
+    if args.fracture_extent is not None:
+        (geom_overrides["ymin"], geom_overrides["ymax"],
+         geom_overrides["zmin"], geom_overrides["zmax"]) = args.fracture_extent
+
     geom = GeometryParams(
         h5_path=args.h5_geom,
         syz_path=args.syz_geom,
-        mat_path=args.mat_file
+        mat_path=args.mat_file,
+        **geom_overrides
     )
     
     run = RuntimeParams(
-        plane_file=args.plane_file,
-        cores=args.cores
+        tx_plane_file=args.tx_plane_file,
+        rx_plane_file=args.rx_plane_file,
+        cores=args.cores,
+        no_viz=args.no_viz,
+        target_res=args.target_res,
+        edge_taper=args.edge_taper,
+        incidence=args.incidence,
     )
 
     # --- Run Kernel ---
@@ -1173,6 +1638,11 @@ if __name__ == "__main__":
         # --- Handle Output ---
         base_filename = args.output_name
         save_trace(os.path.join(data_dir, f"{base_filename}.npz"), tvec, trace)
+        if run.incidence == "perfreq":
+            pos, spread, w = run.incidence_spread
+            np.savez(os.path.join(data_dir, f"{base_filename}_incidence.npz"),
+                     elem_pos=pos, spread_rad=spread, contribution=w)
+            logging.info(f"Incidence spread saved to {base_filename}_incidence.npz")
         
         plt.figure()
         plt.plot(tvec*1e9, trace, 'r-')

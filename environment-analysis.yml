@@ -1,0 +1,16 @@
+# Environment for the analysis side: the figure scripts, the metric scripts and tools/.
+# Exact versions, as used to produce the figures and tables of the paper.
+#
+# Separate from environment.yml because it runs a newer stack. Nothing here builds gprMax's
+# Cython extensions, so the NumPy-1 and Python-3.11 constraints do not apply, and reading a
+# gprMax .out file needs only h5py. joblib is absent because the analysis scripts are serial;
+# ra_hpo.py needs it, so run the solver in the environment of environment.yml.
+name: rahpo-analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.9
+  - numpy=2.2.2
+  - scipy=1.15.1
+  - h5py=3.12.1
+  - matplotlib=3.10.0

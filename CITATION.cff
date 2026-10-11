@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the article below."
+title: "RA-HPO: Ray-Aligned Hybrid Physical Optics borehole-radar forward solver"
+type: software
+authors:
+  - given-names: Jinqiang
+    family-names: Chen
+    affiliation: Delft University of Technology
+    orcid: "https://orcid.org/0009-0006-0564-6355"
+  - given-names: Alexis
+    family-names: Shakas
+    affiliation: ETH Zurich
+    orcid: "https://orcid.org/0000-0001-6572-4040"
+  - given-names: Evert
+    family-names: Slob
+    affiliation: Delft University of Technology
+    orcid: "https://orcid.org/0000-0002-4529-1134"
+repository-code: "https://github.com/GeoHEAT/WP5T1_borehole_radar_forward_solver"
+license: MIT
+version: 1.0.0
+keywords:
+  - borehole radar
+  - ground-penetrating radar
+  - forward modeling
+  - physical optics
+  - electromagnetic reciprocity
+  - fractured media
+  - gprMax
+preferred-citation:
+  type: article
+  title: "A Ray-Aligned Hybrid Physical Optics Method for Fast 3D Borehole Radar Modeling"
+  authors:
+    - given-names: Jinqiang
+      family-names: Chen
+    - given-names: Alexis
+      family-names: Shakas
+    - given-names: Evert
+      family-names: Slob
+  journal: "Computers & Geosciences"
+  status: submitted

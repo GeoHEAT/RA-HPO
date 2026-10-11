@@ -1,0 +1,23 @@
+#title: Finite planar fracture written as a box, on the 0.01 m grid
+#num_threads: 48
+#domain: 8.0 10.0 10.0
+#dx_dy_dz: 0.01 0.01 0.01
+#time_window: 250e-9
+
+#material: 9.0 1e-4 1 0 rock
+#material: 80.0 0.5 1 0 my_water
+
+#waveform: ricker 100 100e6 my_ricker
+#hertzian_dipole: z 0.5 5.0 5.5 my_ricker
+#rx: 0.5 5.0 4.5
+
+#box: 0 0 0 8.0 10.0 10.0 rock
+#cylinder: 0.5 5.0 0 0.5 5.0 10.0 0.075 my_water
+
+## The fracture of ../For_full-domain_verifications/3D8x10x10-shifted_frac-dist6-4h_planar_h0pt01.in,
+## written as a box: the slab x in [6.48, 6.52] m, y and z in [1, 9] m, which is what that model's
+## HDF5 volume holds. Its faces lie on cell faces at 0.01 m and at 0.005 m, so the aperture
+## (0.04 m) and the extent (8 x 8 m) are the same on both grids. The fill is water
+## (eps_r 80, sigma 0.5 S/m); averaging is off ("n"), as with #geometry_objects_read.
+## On the 0.01 m grid this model reproduces the HDF5-volume model to round-off.
+#box: 6.48 1.0 1.0 6.52 9.0 9.0 my_water n

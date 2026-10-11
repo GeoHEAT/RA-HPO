@@ -1,0 +1,21 @@
+#title: A simplified BH environment
+#num_threads: 128
+#domain: 8.0 8.0 8.0
+#dx_dy_dz: 0.01 0.01 0.01
+#time_window: 200e-9
+
+#material: 9.0 1e-4 1 0 rock
+#material: 80.0 0.5 1 0 my_water
+
+#waveform: ricker 100 100e6 my_ricker
+#hertzian_dipole: z 0.5 4.0 4.0 my_ricker
+#rx: 0.5 4.0 3.0
+
+#box: 0 0 0 8.0 8.0 8.0 rock
+
+#geometry_objects_read: 0 0 0 ./input_h5_geom/3d_domain8x8x8_frac_planar-2h_vertical_dx010.h5 ../materials.txt
+
+#python:
+for i in range(1, 150):
+    print('#snapshot: 0 4.0 0 8.0 4.01 8.0 0.01 0.01 0.01 {} snapshot{}'.format((i)*1e-9, i))
+#end_python:
