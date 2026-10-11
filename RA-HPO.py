@@ -86,12 +86,12 @@ class GeometryParams:
     # Flag for heterogeneity
     is_heterogeneous: bool = True
     fracture_type: str = 'planar'  # Keep track of geometry
-    sigma_gpr: float = 5.0         # Add dynamic sigma
+    sigma_gpr: float = 10.0         # Add dynamic sigma
     phi_min: float = 0.1           # Add dynamic phi
     phi_max: float = 0.9           # Add dynamic phi
     thickness_var: float = 0.0
 
-    load_from_file: bool = True
+    load_from_file: bool = False
     # Paths will be populated dynamically via argparse in __main__
     syz_path: str = ""
     h5_path: str = ""
@@ -1140,11 +1140,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RA-HPO: Ray-Aligned Hybrid Physical Optics Method")
     parser.add_argument("--plane_file", type=str, default="3D_8x10x10-shifted_nofrac_planex3_h0pt01.out",
                         help="Path to the gprMax reference plane HDF5 file.")
-    parser.add_argument("--h5_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/geom_OnHeter_sig5_highVar.h5",
+    parser.add_argument("--h5_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/geom_OnHeter_sig10_highVar.h5",
                         help="Path to geometry HDF5 file.")
-    parser.add_argument("--syz_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/Syz_OnHeter_sig5_highVar.h5",
+    parser.add_argument("--syz_geom", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/Syz_OnHeter_sig10_highVar.h5",
                         help="Path to stochastic perturbation HDF5 file.")
-    parser.add_argument("--mat_file", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/mat_OnHeter_sig5_highVar.txt",
+    parser.add_argument("--mat_file", type=str, default="/home/nfs/jchen18/chandler/BH_gprMax/shifted_domain8x10x10_fracs/input_h5_geom/mat_OnHeter_sig10_highVar.txt",
                         help="Path to the materials text file.")
     parser.add_argument("--cores", type=int, default=24, help="Number of CPU cores for parallel execution.")
     parser.add_argument("--output_name", type=str, default="RA_HPO_BH_trace", help="Base name for the output files.")
