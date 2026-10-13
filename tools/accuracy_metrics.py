@@ -52,7 +52,7 @@ from scipy.signal import hilbert
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
-from plot_traces import (compare_traces, load_analytic, load_rahpo,  # noqa: E402
+from plot_traces import (band_match, compare_traces, load_analytic, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)
 
 SHIFTS_NS = np.arange(-0.3, 0.3 + 1e-9, 0.001)
@@ -243,7 +243,7 @@ def exact_rows():
     spec = np.zeros(mf * nf, complex)
     spec[1:nf + 1] = G * wav * np.exp(-2j * np.pi * freq * np.sqrt(2) / fc)
     ta = np.arange(mf * nf) * dt * 1e9
-    ea = 2 * np.real(np.fft.ifft(spec)) / dt
+    ea = band_match(ta, 2 * np.real(np.fft.ifft(spec)) / dt)   # the FDTD trace is band-matched too
     tg = np.linspace(2.0, 40.0, 20001)
     q, p = np.interp(tg, ta, ea), np.interp(tg, tf, df)
     nq = np.linalg.norm(q)

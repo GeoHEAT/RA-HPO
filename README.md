@@ -162,7 +162,9 @@ the `#geometry_view` line and the `#python` snapshot block saves time and disk s
 
 **5. Metrics, tables and figures.** The analysis scripts read the gprMax outputs, the RA-HPO
 traces and the geometry files from their default locations and write to `metrics/` and
-`figures/`.
+`figures/`. Every FDTD and exact reference trace is passed through the Gaussian window that
+`ra_hpo.py` applies to its own spectrum (`band_match` in `plot_traces.py`), so that both traces
+of a comparison cover the same band.
 
 | Result | Command | Output |
 |---|---|---|
@@ -258,7 +260,7 @@ The worked example and the tests run on a laptop. The cases of the paper need a 
 These figures were measured on a node with two Intel Xeon Gold 6448Y processors (64 cores) and
 250 GB of memory, with gprMax 3.1.7 on the CPU, built with GCC 13.4.0 for Python 3.11 and
 NumPy 1.26.4. The two refined-grid models at 0.005 m each need about 45 h at 48 threads and
-442 GB of memory.
+452 GB of memory.
 
 ### Timing procedure
 
@@ -294,7 +296,7 @@ and configuration of each case. The worked example ships its two data files in `
 If you use RA-HPO, please cite:
 
 > J. Chen, A. Shakas, E. Slob. A Ray-Aligned Hybrid Physical Optics Method for Fast 3D Borehole
-> Radar Modeling. Submitted to *Computers & Geosciences*.
+> Radar Modeling of Fluid-Filled Fractures. Submitted to *Computers & Geosciences*.
 
 [CITATION.cff](CITATION.cff) holds the same reference in machine-readable form.
 

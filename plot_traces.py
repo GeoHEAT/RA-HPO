@@ -2,7 +2,8 @@
 Single-trace comparisons between full-domain gprMax and RA-HPO.
 
 For every case of Tables 2 and 3 (cases.py, groups "accuracy" and "roughness") the script
-  1. reads the gprMax receiver trace (Ez) and subtracts the direct-wave run of the same model
+  1. reads the gprMax receiver trace (Ez), passes it through the synthesis window of ra_hpo.py
+     (band_match, as every reference trace and the exact trace), and subtracts the direct-wave run of the same model
      without the fracture, giving the scattered response (skipped for the infinite case,
      which has no borehole and whose direct wave has decayed below 0.2% of the reflection
      peak inside the evaluation window);
@@ -38,6 +39,7 @@ from cases import (ANALYTIC, CASES, FIGURE_DIR, METRICS_DIR, TIME_RANGE, Case, f
                    trace_file)
 
 FC = 100e6                     # Ricker center frequency [Hz]
+F_SIGMA = 8.0 * FC             # width of the Gaussian synthesis window of ra_hpo.py [Hz]
 METRICS_CSV = METRICS_DIR / "trace_metrics.csv"
 
 # Figure style: sized for a subfigure of about 0.58 of the text width, vector output
@@ -50,12 +52,25 @@ LINESTYLES = {"analytic": (0, (6, 2, 1, 2)), "gprmax": "-", "rahpo": "--"}
 # -----------------------------
 # Loaders
 # -----------------------------
+def band_match(t_ns: np.ndarray, d: np.ndarray) -> np.ndarray:
+    """Apply the synthesis window of ra_hpo.py, W(f) = exp(-(f/F_SIGMA)^2 / 2), to a reference trace.
+
+    ra_hpo.py multiplies the deconvolved RA-HPO spectrum by W. Every reference trace passes
+    through the same window, so that both traces of a comparison cover the same band. The
+    trace is zero-padded to four times its length, so the filter does not wrap around.
+    """
+    n = 4 * d.size
+    f = np.fft.rfftfreq(n, (t_ns[1] - t_ns[0]) * 1e-9)
+    return np.fft.irfft(np.fft.rfft(d, n) * np.exp(-0.5 * (f / F_SIGMA) ** 2), n)[: d.size]
+
+
 def load_gprmax_ez(model: str, rx: int = 1) -> tuple[np.ndarray, np.ndarray]:
-    """Return (time_ns, Ez) of one receiver of the gprMax output of a model."""
+    """Return (time_ns, Ez) of one receiver of the gprMax output of a model, band-matched."""
     with h5py.File(fdtd_output(model), "r") as f:
         dt = float(f.attrs["dt"])
         ez = f[f"/rxs/rx{rx}/Ez"][:]
-    return np.arange(ez.size) * dt * 1e9, ez
+    t = np.arange(ez.size) * dt * 1e9
+    return t, band_match(t, ez)
 
 
 def load_scattered_gprmax(case: Case, rx: int = 1) -> tuple[np.ndarray, np.ndarray]:
@@ -79,10 +94,11 @@ def load_rahpo(key: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_analytic(filename: str) -> tuple[np.ndarray, np.ndarray]:
-    """Exact trace (analytic_reference/), shifted from its 1/fc wavelet delay to gprMax's sqrt(2)/fc."""
+    """Exact trace (analytic_reference/), shifted from its 1/fc wavelet delay to gprMax's sqrt(2)/fc,
+    band-matched."""
     data = np.loadtxt(ANALYTIC / filename, delimiter=",")
     t = data[:, 0] - 1.0 / FC * 1e9 + np.sqrt(2.0) / FC * 1e9
-    return t, data[:, 1]
+    return t, band_match(t, data[:, 1])
 
 
 # -----------------------------
