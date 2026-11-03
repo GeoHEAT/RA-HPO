@@ -5,13 +5,13 @@ Writes an HDF5 volume for gprMax's #geometry_objects_read: an int16 array in whi
 fracture cells hold material 0 and every other cell -1 (left to the surrounding model). A cell
 belongs to the fracture when its center lies within half the aperture of the fracture surface,
 measured along the surface normal, so a curved or inclined fracture appears as a staircase on
-the grid. Material 0 is defined in gprMax_models/materials.txt.
+the grid. Material 0 is defined in examples/gprMax_models/materials.txt.
 
 The volume is 8 x 8 x 8 m at 0.01 m (800^3 cells). The models place it at (0, 1, 1) m, so its
 local y and z equal the solver's local fracture coordinates and the fracture center
 (y, z) = (5, 5) m lies at local (4, 4) m.
 
-Shapes (file names as the models in gprMax_models/ read them):
+Shapes (file names as the models in examples/gprMax_models/ read them):
 
     planar          vertical plane x = 6.5 m
                     3d_domain8x8x8_frac_planar-<n>h_vertical_dx010.h5
@@ -28,7 +28,7 @@ Usage
 -----
     python generate_geometry_h5.py --shape planar
     python generate_geometry_h5.py --shape sinusoidal_3d --amplitude 0.25
-    python generate_geometry_h5.py --all --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
+    python tools/generate_geometry_h5.py --all --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
 
 --all writes every volume read by the models of this repository. One volume needs about 6 GB
 of memory.

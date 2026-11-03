@@ -151,15 +151,15 @@ python tools/convert_plane.py --in plane.out --out plane.h5 [--target_res 0.04]
 ## Reproducing the paper
 
 The cases of the paper are defined in [examples/cases.py](examples/cases.py), and
-[configs/cases.json](configs/cases.json) lists them in machine-readable form. Every RA-HPO trace
+[examples/cases.json](examples/cases.json) lists them in machine-readable form. Every RA-HPO trace
 is written as `output/traces/<case>.npz`, and the analysis scripts read it under that name. All
 commands run from the repository root.
 
 **1. Fracture geometry volumes**, read by the full-domain gprMax models:
 
 ```bash
-python tools/generate_geometry_h5.py --all --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
-python tools/generate_heter_geometry_h5_and_materials.py --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
+python tools/generate_geometry_h5.py --all --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
+python tools/generate_heter_geometry_h5_and_materials.py --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
 ```
 
 **2 to 4. gprMax, plane conversion and RA-HPO, per case.**
@@ -194,17 +194,17 @@ of a comparison cover the same band.
 | Two-medium equivalent-source propagation | `python tools/plot_two_medium.py` | `output/figures/Traces_two_medium.pdf`, `output/metrics/trace_metrics_two_medium.csv` |
 | Coda of the heterogeneous fractures | `python tools/coda_metrics.py` | `output/metrics/coda_metrics.csv` |
 | Refined-grid FDTD reference | `python tools/refined_reference.py` | `output/metrics/refined_reference.csv`, `output/metrics/refined_reference_box_check.csv` |
-| Exact solution for the infinite planar fracture | see [analytic_reference/](analytic_reference/README.md) | `vertical_plannar_2cm_analy_trace.csv` |
+| Exact solution for the infinite planar fracture | see [examples/analytic/](examples/analytic/README.md) | `vertical_plannar_2cm_analy_trace.csv` |
 | Ray-aligned propagation test | `python tools/validate_propagation.py Ez` (also `Ex`, `Ey`) | `output/propagation/` |
 | Reference plane from a truncated domain | `python tools/compare_ref_planes.py TRUNCATED.out FULL.out` | `output/comparisons/` |
 | Plane recorded at 0.04 m against one recorded at 0.01 m | `python tools/compare_planes.py FINE.out COARSE.out --ref-step 4 --cand-step 1` | pass or fail |
 | Geometry panels of the trace figures | `python tools/plot_surface.py` | `output/figures/*.pdf` |
 | Property maps of the heterogeneous fills | `python tools/plot_heterogeneous_maps.py` | `output/figures/fig_*_ExpHeter_*.pdf` |
 
-The propagation test needs the two models in `gprMax_models/For_ray-align_propagation_verification/`.
+The propagation test needs the two models in `examples/gprMax_models/For_ray-align_propagation_verification/`.
 The truncation and sampling comparisons use the models in
-`gprMax_models/For_referenced_plane/For_truncated_domain/` against
-`gprMax_models/For_referenced_plane/For_including_BH_only/`.
+`examples/gprMax_models/For_referenced_plane/For_truncated_domain/` against
+`examples/gprMax_models/For_referenced_plane/For_including_BH_only/`.
 
 To keep the large files elsewhere, set a directory through an environment variable before
 importing the package: `RAHPO_PLANE_DIR` (converted planes, default `output/planes/`),
@@ -227,21 +227,21 @@ rahpo/                         the solver, and nothing else
 ra_hpo.py                      launcher only: calls rahpo.cli, kept for the paper's command
 output/                        gitignored products of a run (created on import)
   traces/  logs/  images/  figures/  metrics/  planes/  propagation/  comparisons/
-examples/                      worked example, paper cases, README figures
+examples/                      the experiments of the paper, not the solver
   cases.py                     models, flags, and file locations of every case
+  cases.json                   the same catalogue in machine-readable form
   traces.py                    loading traces and the comparison metrics
   showcase.py                  draws docs/images/
   example_plane.h5             cut of the paper's reference plane (shipped)
   example_reference.npz        trace computed from that plane (shipped)
+  gprMax_models/               gprMax input files of every case, and materials.txt
+  analytic/                    exact solution for the infinite planar fracture
 docs/                          how to import the library, and the README pictures
 tools/                         geometry, conversion, figures, metrics, case runner
 tests/                         pytest; no large data
-gprMax_models/                 gprMax input files of every case, and materials.txt
-analytic_reference/            exact solution for the infinite planar fracture
-configs/cases.json             the cases in machine-readable form
 ```
 
-The gprMax models are grouped by role:
+The gprMax models live in `examples/gprMax_models/` and are grouped by role:
 
 | Folder | Models |
 |---|---|
@@ -266,7 +266,7 @@ on the plane x = x1.
 
 **Fracture geometry volume** (`.h5`, gprMax `#geometry_objects_read`): int16 dataset `data` with
 attribute `dx_dy_dz`, fracture cells 0 and all other cells -1. Material 0 is defined in
-`gprMax_models/materials.txt`.
+`examples/gprMax_models/materials.txt`.
 
 **Heterogeneous fill**: `geom_<model>.h5` and `mat_<model>.txt` for gprMax, and `Syz_<model>.h5`,
 the fill on the fracture plane read by `ra_hpo.py --heterogeneous`.
@@ -294,7 +294,7 @@ n = 8, 16, 24 and 48 threads (RA-HPO also serially), each run with exclusive use
 
 - **FDTD.** The finite planar model with `#num_threads: n`, and its `#geometry_view` line and
   snapshot block removed, run as
-  `OMP_NUM_THREADS=n OMP_PLACES=cores OMP_PROC_BIND=close python -m gprMax gprMax_models/For_full-domain_verifications/3D8x10x10-shifted_frac-dist6-4h_planar_h0pt01.in`.
+  `OMP_NUM_THREADS=n OMP_PLACES=cores OMP_PROC_BIND=close python -m gprMax examples/gprMax_models/For_full-domain_verifications/3D8x10x10-shifted_frac-dist6-4h_planar_h0pt01.in`.
   One discarded warm-up, then two timed runs. The time is the one gprMax prints as
   `Simulation completed in`.
 - **RA-HPO.** `python ra_hpo.py --tx_plane_file PLANE.h5 --rx_plane_file PLANE.h5 --target_res 0.04 --fracture_type planar --cores n --no_viz --output_name timing`,
@@ -305,7 +305,7 @@ n = 8, 16, 24 and 48 threads (RA-HPO also serially), each run with exclusive use
   phases in the line `[PHASE]` of the log, which includes reading the converted plane but not
   interpreter start-up.
 - **Reference plane.** The truncated-domain model
-  `gprMax_models/For_referenced_plane/For_truncated_domain/3D_4x10x10-shifted_nofrac_planex3_h0pt01_rx0pt04.in`
+  `examples/gprMax_models/For_referenced_plane/For_truncated_domain/3D_4x10x10-shifted_nofrac_planex3_h0pt01_rx0pt04.in`
   at 48 threads under the FDTD settings above, then `python tools/convert_plane.py` on its output.
 
 ## Data
@@ -323,7 +323,7 @@ Three things are tracked because the repository cannot rebuild them from the cod
   The plane is a cut of the paper's reference plane; regenerating it needs the gprMax run.
 - `docs/images/*.png`, the two pictures in this README. Redraw them with
   `python examples/showcase.py`.
-- `analytic_reference/vertical_plannar_2cm_analy_trace.csv`, the exact trace for the infinite
+- `examples/analytic/vertical_plannar_2cm_analy_trace.csv`, the exact trace for the infinite
   planar fracture.
 
 The reference planes, full-domain FDTD traces, RA-HPO traces, and fracture geometry volumes

@@ -55,7 +55,10 @@ print(plane_input(case, "tx"))
 ```
 
 `python tools/run_case.py finite_planar` prints the gprMax commands, the plane
-conversion, and the RA-HPO command for that case.
+conversion, and the RA-HPO command for that case. The gprMax inputs are
+`examples/gprMax_models/`. The exact infinite-layer trace is
+`examples/analytic/`. `examples/cases.json` is the same catalogue as
+`examples/cases.py`.
 
 ## Figures
 

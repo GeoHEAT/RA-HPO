@@ -15,7 +15,7 @@ to 0.9.
 
 Usage
 -----
-    python generate_heter_geometry_h5_and_materials.py --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
+    python tools/generate_heter_geometry_h5_and_materials.py --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
 """
 import argparse
 import os

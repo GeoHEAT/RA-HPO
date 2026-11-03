@@ -8,8 +8,8 @@ Every script that runs or evaluates a case takes its configuration from here. A 
 its RA-HPO trace as ``output/traces/<key>.npz``, and the analysis scripts read it under
 that name.
 
-gprMax input files stay in ``gprMax_models/``; gprMax writes each ``.out`` next to its
-input. Converted planes, traces, figures and tables go under ``output/`` (see
+gprMax input files stay in ``examples/gprMax_models/``; gprMax writes each ``.out`` next to
+its input. Converted planes, traces, figures and tables go under ``output/`` (see
 :mod:`rahpo.paths`). ``RAHPO_FDTD_DIR``, when set, is searched for the full-domain gprMax
 outputs instead of the model directories.
 """
@@ -23,9 +23,9 @@ from typing import Optional
 from rahpo.paths import FIGURES, METRICS, PLANES, PROJECT_DIR, TRACES
 
 REPO = PROJECT_DIR
-MODELS = REPO / "gprMax_models"
+MODELS = REPO / "examples" / "gprMax_models"
 GEOMETRY = MODELS / "For_full-domain_verifications" / "input_h5_geom"
-ANALYTIC = REPO / "analytic_reference"
+ANALYTIC = REPO / "examples" / "analytic"
 PLANE_DIR = PLANES
 TRACE_DIR = TRACES
 FDTD_DIR = os.environ.get("RAHPO_FDTD_DIR")
@@ -35,7 +35,7 @@ METRICS_DIR = METRICS
 TIME_RANGE = (100.0, 200.0)   # evaluation window of every comparison [ns]
 PLANE_RES = 0.04              # receiver spacing at which the solver reads the planes [m]
 
-# Reference-plane models (paths below gprMax_models/, without extension)
+# Reference-plane models (paths below examples/gprMax_models/, without extension)
 _P = "For_referenced_plane"
 PLANE_BH = f"{_P}/For_including_BH_only/3D_8x10x10-shifted_nofrac_planex3_h0pt01"
 PLANE_NOBH = f"{_P}/For_infinite_withoutBH/3D_8x10x10-shifted_nobh_nofrac_planex3_h0pt01"
@@ -83,7 +83,7 @@ class Case:
     fdtd: Optional[str] = None      # full-domain model of the reference trace
     direct: Optional[str] = None    # its direct-wave model, subtracted; None: no subtraction
     figure: Optional[str] = None    # figure written by plot_traces.py
-    analytic: Optional[str] = None  # exact trace in analytic_reference/ (infinite planar case)
+    analytic: Optional[str] = None  # exact trace in examples/analytic/ (infinite planar case)
     normalized: bool = False        # plot each trace normalized by its peak
     raw_plane: bool = False         # read the gprMax .out directly instead of a converted plane
     target_res: float = PLANE_RES

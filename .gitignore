@@ -37,7 +37,7 @@ __pycache__/
 *.vtkhdf
 
 # gprMax writes a materials list next to a generated geometry volume
-gprMax_models/**/input_h5_geom/*.txt
+examples/gprMax_models/**/input_h5_geom/*.txt
 
 # Outputs of an older validate_propagation.py, written to the working directory
 propagation_*.npz

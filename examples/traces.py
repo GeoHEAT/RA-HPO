@@ -53,7 +53,7 @@ def load_rahpo(key: str) -> tuple[np.ndarray, np.ndarray]:
     return data["time_ns"], data["amplitude"]
 
 def load_analytic(filename: str) -> tuple[np.ndarray, np.ndarray]:
-    """Exact trace (analytic_reference/), shifted from its 1/fc wavelet delay to gprMax's sqrt(2)/fc,
+    """Exact trace (examples/analytic/), shifted from its 1/fc wavelet delay to gprMax's sqrt(2)/fc,
     band-matched."""
     data = np.loadtxt(ANALYTIC / filename, delimiter=",")
     t = data[:, 0] - 1.0 / FC * 1e9 + np.sqrt(2.0) / FC * 1e9

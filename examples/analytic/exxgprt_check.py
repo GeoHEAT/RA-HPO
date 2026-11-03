@@ -3,8 +3,8 @@
 Recomputes the exact reflected trace of the infinite planar case and compares it with a stored
 CSV. With no arguments it checks vertical_plannar_2cm_analy_trace.csv in this folder:
 
-    python analytic_reference/exxgprt_check.py
-    python analytic_reference/exxgprt_check.py D NCELLS CSV
+    python examples/analytic/exxgprt_check.py
+    python examples/analytic/exxgprt_check.py D NCELLS CSV
 
 Arguments: layer thickness D (m), NCELLS with zsrc = zrec = 6 - 0.01 * NCELLS (half the
 aperture in 0.01 m cells), and the CSV to compare with. Prints whether the time axes agree and

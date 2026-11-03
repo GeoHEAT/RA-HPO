@@ -5,7 +5,7 @@ The field recorded by gprMax on a reference plane (x = x1) is propagated along r
 target plane (x = x2) and compared with the field simulated directly by gprMax on x2.
 
 The default inputs are the outputs of the two models in
-gprMax_models/For_ray-align_propagation_verification/: the plane at x = 3.5 m is propagated to
+examples/gprMax_models/For_ray-align_propagation_verification/: the plane at x = 3.5 m is propagated to
 x = 6.5 m, where the second model records the field directly.
 
 Usage:
@@ -44,9 +44,9 @@ from scipy.interpolate import interp1d
 import matplotlib.ticker as mticker
 
 # ========== Test configuration (models in For_ray-align_propagation_verification/) ==========
-_MODELS = "gprMax_models/For_ray-align_propagation_verification/"
-PLANE_FILE = _MODELS + "3D_8x10x10-shifted_nofrac_tx5pt0_planex3_h0pt01.out"   # recorded plane, x = 3.5 m
-TARGET_FILE = _MODELS + "3D_8x10x10-shifted_nofrac_tx5pt0_planex6_h0pt01.out"  # simulated plane at x2
+_MODELS = _REPO / "examples" / "gprMax_models" / "For_ray-align_propagation_verification"
+PLANE_FILE = str(_MODELS / "3D_8x10x10-shifted_nofrac_tx5pt0_planex3_h0pt01.out")   # recorded plane, x = 3.5 m
+TARGET_FILE = str(_MODELS / "3D_8x10x10-shifted_nofrac_tx5pt0_planex6_h0pt01.out")  # simulated plane at x2
 x2 = 6.5  # target plane x [m]
 x_tol = 1e-3  # meters tolerance on the plane position
 src_pos = (0.5, 5.0, 5.0)  # (x_s, y_s, z_s) in meters

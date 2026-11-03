@@ -3,7 +3,7 @@ Multi-offset gather: Supplementary Table S2 and the gather figure.
 
 The finite planar fracture is computed for sixteen receivers on the borehole axis, every RA-HPO
 trace from the one reference plane by axial shift (cases gather_z*), against one FDTD run that
-records the same receivers (gprMax_models/For_gather/). The FDTD reference of each receiver is
+records the same receivers (examples/gprMax_models/For_gather/). The FDTD reference of each receiver is
 the fractured run minus the no-fracture run at the same receiver.
 
 Writes output/metrics/gather.csv (one row per receiver) and output/figures/Traces_gather.pdf: three panels

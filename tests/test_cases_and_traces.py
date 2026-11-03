@@ -15,7 +15,7 @@ from examples.traces import band_match, compare_traces
 def test_case_keys_are_unique_and_the_model_tree_is_the_repository():
     assert len(BY_KEY) == len(CASES)
     assert REPO == Path(__file__).resolve().parents[1]
-    assert MODELS == REPO / "gprMax_models"
+    assert MODELS == REPO / "examples" / "gprMax_models"
     assert MODELS.is_dir()
 
 
