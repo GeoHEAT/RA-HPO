@@ -22,8 +22,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parent / "tools"))
 
-from make_example_plane import crop_and_decimate  # noqa: E402
-from ra_hpo import load_gprmax_plane  # noqa: E402
+from make_example_plane import crop_and_decimate
+from rahpo.fields import load_gprmax_plane
 
 DT = 0.01 / (299792458.0 * np.sqrt(3.0))    # gprMax time step of a 0.01 m cube
 NT = 1600
@@ -49,11 +49,11 @@ def write_plane(path: Path):
                         "step": 1, "source_file": "synthetic", "source_size": 0, "source_mtime": 0.0})
 
 
-def main():
+def test_crop_and_decimate():
     with tempfile.TemporaryDirectory() as d:
         src, dst = Path(d) / "full.h5", Path(d) / "example.h5"
         write_plane(src)
-        info = crop_and_decimate(src, dst, (4.4, 5.6), (4.6, 6.4), 8)
+        crop_and_decimate(src, dst, (4.4, 5.6), (4.6, 6.4), 8)
         fields, x1, yy, zz, dt, nt = load_gprmax_plane(str(dst))
         assert np.isclose(yy[0], 4.4) and np.isclose(yy[-1], 5.6) and yy.size == 31, yy[[0, -1]]
         assert np.isclose(zz[0], 4.6) and np.isclose(zz[-1], 6.4) and zz.size == 46, zz[[0, -1]]
@@ -71,8 +71,11 @@ def main():
             raise AssertionError("existing output should not be overwritten")
         except FileExistsError:
             pass
-    print(f"test_make_example_plane: 4 checks passed (46 x 31 receivers, Nt {nt}, "
-          f"pulse error {err:.1e} of peak)")
+
+
+def main():
+    test_crop_and_decimate()
+    print("test_make_example_plane: 4 checks passed")
 
 
 if __name__ == "__main__":

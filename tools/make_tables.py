@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import METRICS_DIR  # noqa: E402
+from rahpo.cases import METRICS_DIR  # noqa: E402
 ACCURACY = [  # Table 2 label -> case name in the CSV
     ("Infinite planar", "Infinite planar"),
     ("Finite planar", "Finite planar"),

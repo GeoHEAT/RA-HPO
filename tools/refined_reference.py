@@ -33,7 +33,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from accuracy_metrics import misfits  # noqa: E402
-from cases import (BY_KEY, METRICS_DIR, REFINED, REFINED_BOX, REFINED_DIRECT,  # noqa: E402
+from rahpo.cases import (BY_KEY, METRICS_DIR, REFINED, REFINED_BOX, REFINED_DIRECT,  # noqa: E402
                    TIME_RANGE, fdtd_output)
 from plot_traces import (compare_traces, load_gprmax_ez, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)

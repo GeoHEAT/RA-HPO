@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-REPO = Path(__file__).resolve().parent
+REPO = Path(__file__).resolve().parents[1]
 MODELS = REPO / "gprMax_models"
 GEOMETRY = MODELS / "For_full-domain_verifications" / "input_h5_geom"
 ANALYTIC = REPO / "analytic_reference"

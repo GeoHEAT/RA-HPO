@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import ELEMENT_SIZES, METRICS_DIR, PLANE_SPACINGS, trace_file  # noqa: E402
+from rahpo.cases import ELEMENT_SIZES, METRICS_DIR, PLANE_SPACINGS, trace_file  # noqa: E402
 
 WIN = (100.0, 200.0)
 NGRID = 2001

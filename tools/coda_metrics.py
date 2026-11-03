@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import BY_KEY, METRICS_DIR  # noqa: E402
+from rahpo.cases import BY_KEY, METRICS_DIR  # noqa: E402
 from plot_traces import load_rahpo, load_scattered_gprmax  # noqa: E402
 
 # The main lobe and the window that follows it, where the parallel fracture's edge

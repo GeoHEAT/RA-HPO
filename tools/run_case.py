@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case, plane_input  # noqa: E402
+from rahpo.cases import CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case, plane_input  # noqa: E402
 
 
 def rel(p: Path) -> str:
@@ -50,7 +50,7 @@ def steps(c: Case, cores: int) -> list[str]:
     for m in plane_models(c):
         out.append(f"python -m gprMax {rel(MODELS / m)}.in")
         if not c.raw_plane:
-            out.append(f"python convert_plane.py --in {rel(MODELS / m)}.out "
+            out.append(f"python tools/convert_plane.py --in {rel(MODELS / m)}.out "
                        f"--out {rel(plane_input(Case('_', '', '', m)))} --target_res {PLANE_RES:g}")
     if c.fdtd:
         out.append("# 2. full-domain reference (gprMax)")

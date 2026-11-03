@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rahpo"
+version = "1.0.0"
+description = "Ray-aligned hybrid physical optics forward solver for borehole radar."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Jinqiang Chen", email = "j.chen-11@tudelft.nl" },
+    { name = "Alexis Shakas", email = "alexis.shakas@eaps.ethz.ch" },
+    { name = "Evert Slob" },
+]
+keywords = ["GPR", "borehole radar", "forward modeling", "physical optics"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "h5py",
+    "joblib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+rahpo = "rahpo.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/GeoHEAT/WP5T1_borehole_radar_forward_solver"
+
+[tool.setuptools.packages.find]
+include = ["rahpo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

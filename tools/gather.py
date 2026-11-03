@@ -24,7 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import (BY_KEY, FIGURE_DIR, GATHER_Z, METRICS_DIR, TIME_RANGE, Z_SOURCE,  # noqa: E402
+from rahpo.cases import (BY_KEY, FIGURE_DIR, GATHER_Z, METRICS_DIR, TIME_RANGE, Z_SOURCE,  # noqa: E402
                    fdtd_output)
 from plot_traces import FONT_SIZE, compare_traces, load_rahpo, load_scattered_gprmax, set_style  # noqa: E402
 

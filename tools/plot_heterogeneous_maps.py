@@ -219,7 +219,9 @@ def generate_standard_images(model_name, input_dir=".", output_dir="."):
 
 
 if __name__ == "__main__":
-    from cases import FIGURE_DIR, GEOMETRY
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from rahpo.cases import FIGURE_DIR, GEOMETRY
 
     set_style()
     os.makedirs(FIGURE_DIR, exist_ok=True)

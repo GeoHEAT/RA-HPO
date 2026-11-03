@@ -51,7 +51,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import hilbert
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
+from rahpo.cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
 from plot_traces import (band_match, compare_traces, load_analytic, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)
 

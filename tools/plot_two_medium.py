@@ -26,8 +26,8 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cases import BY_KEY, FIGURE_DIR, METRICS_DIR, TIME_RANGE  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rahpo.cases import BY_KEY, FIGURE_DIR, METRICS_DIR, TIME_RANGE  # noqa: E402
 from plot_traces import (FONT_SIZE, compare_traces, load_rahpo,  # noqa: E402
                          load_scattered_gprmax, set_style)
 
