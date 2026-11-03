@@ -35,6 +35,7 @@ from rahpo.fields import (
 )
 from rahpo.fracture import get_fracture_mesh, get_specular_point_numerical
 from rahpo.parameters import GeometryParams, MediaParams, RuntimeParams, SourceParams, WorkerParams
+from rahpo.paths import IMAGES
 from rahpo.scattering import element_contribution
 
 def visualize_setup(geom, srcpar, run, elempos, x1, yy, zz):
@@ -111,7 +112,7 @@ def visualize_setup(geom, srcpar, run, elempos, x1, yy, zz):
     ax.legend(custom_lines, [f'Input Plane x={x1:.2f}', 'Ray Paths'], loc='upper left')
 
     plt.tight_layout()
-    plt.savefig('images/RA_HPO_Geometry_Surface.png', dpi=300)
+    plt.savefig(IMAGES / "RA_HPO_Geometry_Surface.png", dpi=300)
 
 
 def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParams, run: RuntimeParams) -> tuple[np.ndarray, np.ndarray]:

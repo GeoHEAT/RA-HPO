@@ -9,7 +9,7 @@ import h5py
 import numpy as np
 from scipy.interpolate import interp1d
 
-from rahpo.cases import ANALYTIC, Case, fdtd_output, trace_file
+from examples.cases import ANALYTIC, Case, fdtd_output, trace_file
 from rahpo.constants import FC
 
 F_SIGMA = 8.0 * FC  # width of the Gaussian synthesis window, Hz

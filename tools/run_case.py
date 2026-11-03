@@ -24,7 +24,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case, plane_input  # noqa: E402
+from examples.cases import (CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case,  # noqa: E402
+                            plane_input, trace_file)
 
 
 def rel(p: Path) -> str:
@@ -57,7 +58,7 @@ def steps(c: Case, cores: int) -> list[str]:
         for m in (c.fdtd, c.direct):
             if m:
                 out.append(f"python -m gprMax {rel(MODELS / m)}.in")
-    out.append("# 3. RA-HPO, writes npz_data/" + c.key + ".npz")
+    out.append("# 3. RA-HPO, writes " + rel(trace_file(c.key)))
     out.append(shlex.join(solver_command(c, cores)))
     return out
 
@@ -70,7 +71,7 @@ def as_dict(c: Case) -> dict:
             "direct_wave_model": f"gprMax_models/{c.direct}.in" if c.direct else None,
             "solver_flags": ["--target_res", f"{c.target_res:g}"] + list(c.flags),
             "plane_file": "gprMax .out" if c.raw_plane else "converted (convert_plane.py)",
-            "trace": f"npz_data/{c.key}.npz", "figure": c.figure}
+            "trace": rel(trace_file(c.key)), "figure": c.figure}
 
 
 def main() -> int:

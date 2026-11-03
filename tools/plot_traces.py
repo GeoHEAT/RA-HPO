@@ -10,7 +10,7 @@ For every case of Tables 2 and 3 (cases.py, groups "accuracy" and "roughness") t
   2. reads the RA-HPO trace <case>.npz;
   3. computes the metrics over the evaluation window TIME_RANGE with compare_traces;
   4. draws the comparison figure of the cases that have one, and writes all metrics to
-     metrics/trace_metrics.csv.
+     output/metrics/trace_metrics.csv.
 
 Metrics (trace 1 = gprMax reference d, trace 2 = RA-HPO p; both linearly interpolated onto a
 common uniform grid of N samples spanning TIME_RANGE):
@@ -35,9 +35,9 @@ import numpy as np
 from matplotlib import font_manager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import (ANALYTIC, CASES, FIGURE_DIR, METRICS_DIR, TIME_RANGE, Case, fdtd_output,
+from examples.cases import (ANALYTIC, CASES, FIGURE_DIR, METRICS_DIR, TIME_RANGE, Case, fdtd_output,
                          trace_file)
-from rahpo.traces import (band_match, compare_traces, load_analytic, load_gprmax_ez,
+from examples.traces import (band_match, compare_traces, load_analytic, load_gprmax_ez,
                           load_rahpo, load_scattered_gprmax)
 
 METRICS_CSV = METRICS_DIR / "trace_metrics.csv"

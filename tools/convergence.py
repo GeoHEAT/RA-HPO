@@ -9,7 +9,7 @@ Two sweeps, each run for the finite planar and the biaxial corrugated (A = 0.25 
 For each level the script computes the misfit chi against the finest level of its sweep, the
 observed order of convergence from successive differences, and the Richardson-extrapolated
 error at the adopted settings (dl = 0.01 m, spacing 0.04 m). It also checks the statements of
-the paper that rest on these numbers and writes metrics/convergence.csv.
+the paper that rest on these numbers and writes output/metrics/convergence.csv.
 
 The metric
 ----------
@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import ELEMENT_SIZES, METRICS_DIR, PLANE_SPACINGS, trace_file  # noqa: E402
+from examples.cases import ELEMENT_SIZES, METRICS_DIR, PLANE_SPACINGS, trace_file  # noqa: E402
 
 WIN = (100.0, 200.0)
 NGRID = 2001

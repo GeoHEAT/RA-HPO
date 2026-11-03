@@ -11,7 +11,6 @@ inside the PDF). Two size presets set the print scale:
   "side": panel next to a trace (about 0.40 of the text width)
   "row" : one of three panels in a row (about 0.32 of the text width)
 """
-import os
 from pathlib import Path
 
 import h5py
@@ -163,11 +162,13 @@ def plot_fracture_property_v2(X_surf, Y_mesh, Z_mesh, Values, color_label, cmap,
 
 def generate_standard_images(model_name, input_dir=".", output_dir="."):
     """Processes a single model configuration and generates its 3 plots."""
-    hdf5_file = os.path.join(input_dir, f'geom_{model_name}.h5')
-    materials_file = os.path.join(input_dir, f'mat_{model_name}.txt')
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    hdf5_file = input_dir / f"geom_{model_name}.h5"
+    materials_file = input_dir / f"mat_{model_name}.txt"
 
     # Check if files exist to avoid crashing the batch loop
-    if not os.path.exists(hdf5_file) or not os.path.exists(materials_file):
+    if not hdf5_file.is_file() or not materials_file.is_file():
         print(f"  [ERROR] Files for {model_name} not found. Skipping.")
         return
 
@@ -194,7 +195,7 @@ def generate_standard_images(model_name, input_dir=".", output_dir="."):
         X_surf, Y, Z, phi_2d,
         color_label=r"Porosity $\phi$",
         cmap=cm.coolwarm,
-        filename=os.path.join(output_dir, f"fig_porosity_{model_name}.pdf"),
+        filename=output_dir / f"fig_porosity_{model_name}.pdf",
         size="row",
     )
 
@@ -203,7 +204,7 @@ def generate_standard_images(model_name, input_dir=".", output_dir="."):
         X_surf, Y, Z, epsr_2d,
         color_label=r"Permittivity $\varepsilon_r'$",
         cmap=cm.Spectral,
-        filename=os.path.join(output_dir, f"fig_permittivity_{model_name}.pdf"),
+        filename=output_dir / f"fig_permittivity_{model_name}.pdf",
         size="side",
     )
 
@@ -212,7 +213,7 @@ def generate_standard_images(model_name, input_dir=".", output_dir="."):
         X_surf, Y, Z, sigma_2d,
         color_label=r"Conductivity $\sigma_{\mathrm{eff}}$ (S/m)",
         cmap=cm.Spectral,
-        filename=os.path.join(output_dir, f"fig_conductivity_{model_name}.pdf"),
+        filename=output_dir / f"fig_conductivity_{model_name}.pdf",
         size="side",
     )
     print(f"  Successfully saved figures for {model_name}.")
@@ -221,10 +222,10 @@ def generate_standard_images(model_name, input_dir=".", output_dir="."):
 if __name__ == "__main__":
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from rahpo.cases import FIGURE_DIR, GEOMETRY
+    from examples.cases import FIGURE_DIR, GEOMETRY
 
     set_style()
-    os.makedirs(FIGURE_DIR, exist_ok=True)
+    FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     for model in ("ExpHeter_Lc02_highVar", "ExpHeter_Lc1_highVar", "ExpHeter_Lc4_highVar"):
         print(f"\nProcessing: {model}")
-        generate_standard_images(model, input_dir=str(GEOMETRY), output_dir=str(FIGURE_DIR))
+        generate_standard_images(model, input_dir=GEOMETRY, output_dir=FIGURE_DIR)

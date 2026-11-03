@@ -1,19 +1,17 @@
 """
 The cases of the paper: models, reference planes, solver settings and file locations.
 
+This catalogue is not part of the solver. It lives next to the worked example so that
+``rahpo`` stays the method, and the experiments of the paper stay in ``examples``.
+
 Every script that runs or evaluates a case takes its configuration from here. A case writes
-its RA-HPO trace as <key>.npz, and the analysis scripts read it under that name.
+its RA-HPO trace as ``output/traces/<key>.npz``, and the analysis scripts read it under
+that name.
 
-Locations (relative to the repository root; the environment variables override them):
-
-    gprMax_models/             gprMax input files; gprMax writes each output next to its input
-    planes/                    converted reference planes, <model>.h5   (RAHPO_PLANE_DIR)
-    npz_data/                  RA-HPO traces, <case>.npz                (RAHPO_TRACE_DIR)
-    figures/                   figures written by the plotting scripts  (RAHPO_FIGURE_DIR)
-    metrics/                   tables written by the analysis tools     (RAHPO_METRICS_DIR)
-
-RAHPO_FDTD_DIR, when set, is searched for the full-domain gprMax outputs instead of the
-model directories.
+gprMax input files stay in ``gprMax_models/``; gprMax writes each ``.out`` next to its
+input. Converted planes, traces, figures and tables go under ``output/`` (see
+:mod:`rahpo.paths`). ``RAHPO_FDTD_DIR``, when set, is searched for the full-domain gprMax
+outputs instead of the model directories.
 """
 from __future__ import annotations
 
@@ -22,15 +20,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-REPO = Path(__file__).resolve().parents[1]
+from rahpo.paths import FIGURES, METRICS, PLANES, PROJECT_DIR, TRACES
+
+REPO = PROJECT_DIR
 MODELS = REPO / "gprMax_models"
 GEOMETRY = MODELS / "For_full-domain_verifications" / "input_h5_geom"
 ANALYTIC = REPO / "analytic_reference"
-PLANE_DIR = Path(os.environ.get("RAHPO_PLANE_DIR", REPO / "planes"))
-TRACE_DIR = Path(os.environ.get("RAHPO_TRACE_DIR", REPO / "npz_data"))
+PLANE_DIR = PLANES
+TRACE_DIR = TRACES
 FDTD_DIR = os.environ.get("RAHPO_FDTD_DIR")
-FIGURE_DIR = Path(os.environ.get("RAHPO_FIGURE_DIR", REPO / "figures"))
-METRICS_DIR = Path(os.environ.get("RAHPO_METRICS_DIR", REPO / "metrics"))
+FIGURE_DIR = FIGURES
+METRICS_DIR = METRICS
 
 TIME_RANGE = (100.0, 200.0)   # evaluation window of every comparison [ns]
 PLANE_RES = 0.04              # receiver spacing at which the solver reads the planes [m]
@@ -188,7 +188,7 @@ def fdtd_output(model: str) -> Path:
 
 
 def plane_input(case: Case, side: str = "tx") -> Path:
-    """The plane file the solver reads: converted (planes/<model>.h5) or the gprMax .out."""
+    """The plane file the solver reads: converted (output/planes/<model>.h5) or the gprMax .out."""
     model = case.plane_tx if side == "tx" or case.plane_rx is None else case.plane_rx
     return MODELS / f"{model}.out" if case.raw_plane else PLANE_DIR / f"{Path(model).name}.h5"
 

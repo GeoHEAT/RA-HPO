@@ -20,7 +20,7 @@
       "3"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/infinite_planar.npz",
+    "trace": "output/traces/infinite_planar.npz",
     "figure": "Traces_infinite_planar"
   },
   "finite_planar": {
@@ -37,7 +37,7 @@
       "planar"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/finite_planar.npz",
+    "trace": "output/traces/finite_planar.npz",
     "figure": "Traces_finite_planar"
   },
   "finite_planar_arms": {
@@ -54,7 +54,7 @@
       "planar"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/finite_planar_arms.npz",
+    "trace": "output/traces/finite_planar_arms.npz",
     "figure": "Traces_antenna_arms"
   },
   "inclined_8deg": {
@@ -71,7 +71,7 @@
       "planar-tilted"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/inclined_8deg.npz",
+    "trace": "output/traces/inclined_8deg.npz",
     "figure": "Traces_inclined_8deg"
   },
   "piecewise_concave": {
@@ -88,7 +88,7 @@
       "piecewise_yz"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/piecewise_concave.npz",
+    "trace": "output/traces/piecewise_concave.npz",
     "figure": "Traces_piecewise_concave"
   },
   "heter_Lc02": {
@@ -116,7 +116,7 @@
       "gprMax_models/For_full-domain_verifications/input_h5_geom/mat_ExpHeter_Lc02_highVar.txt"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/heter_Lc02.npz",
+    "trace": "output/traces/heter_Lc02.npz",
     "figure": "Traces_heterogeneous_Lc02"
   },
   "heter_Lc1": {
@@ -144,7 +144,7 @@
       "gprMax_models/For_full-domain_verifications/input_h5_geom/mat_ExpHeter_Lc1_highVar.txt"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/heter_Lc1.npz",
+    "trace": "output/traces/heter_Lc1.npz",
     "figure": "Traces_heterogeneous_Lc1"
   },
   "heter_Lc4": {
@@ -172,7 +172,7 @@
       "gprMax_models/For_full-domain_verifications/input_h5_geom/mat_ExpHeter_Lc4_highVar.txt"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/heter_Lc4.npz",
+    "trace": "output/traces/heter_Lc4.npz",
     "figure": "Traces_heterogeneous_Lc4"
   },
   "corrugated_A00625": {
@@ -191,7 +191,7 @@
       "0.0625"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A00625.npz",
+    "trace": "output/traces/corrugated_A00625.npz",
     "figure": null
   },
   "corrugated_A0125": {
@@ -210,7 +210,7 @@
       "0.125"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A0125.npz",
+    "trace": "output/traces/corrugated_A0125.npz",
     "figure": null
   },
   "corrugated_A025": {
@@ -229,7 +229,7 @@
       "0.25"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A025.npz",
+    "trace": "output/traces/corrugated_A025.npz",
     "figure": "Traces_corrugated_A025"
   },
   "corrugated_A03": {
@@ -248,7 +248,7 @@
       "0.3"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A03.npz",
+    "trace": "output/traces/corrugated_A03.npz",
     "figure": null
   },
   "corrugated_A04": {
@@ -267,7 +267,7 @@
       "0.4"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A04.npz",
+    "trace": "output/traces/corrugated_A04.npz",
     "figure": null
   },
   "corrugated_A05": {
@@ -286,7 +286,7 @@
       "0.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A05.npz",
+    "trace": "output/traces/corrugated_A05.npz",
     "figure": null
   },
   "corrugated_A055": {
@@ -305,7 +305,7 @@
       "0.55"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A055.npz",
+    "trace": "output/traces/corrugated_A055.npz",
     "figure": null
   },
   "corrugated_A06": {
@@ -324,7 +324,7 @@
       "0.6"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A06.npz",
+    "trace": "output/traces/corrugated_A06.npz",
     "figure": null
   },
   "corrugated_A07": {
@@ -343,7 +343,7 @@
       "0.7"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/corrugated_A07.npz",
+    "trace": "output/traces/corrugated_A07.npz",
     "figure": null
   },
   "two_medium_eps6": {
@@ -362,7 +362,7 @@
       "6.0"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/two_medium_eps6.npz",
+    "trace": "output/traces/two_medium_eps6.npz",
     "figure": null
   },
   "two_medium_eps12": {
@@ -381,7 +381,7 @@
       "12.0"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/two_medium_eps12.npz",
+    "trace": "output/traces/two_medium_eps12.npz",
     "figure": null
   },
   "no_borehole_plane": {
@@ -398,7 +398,7 @@
       "planar"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/no_borehole_plane.npz",
+    "trace": "output/traces/no_borehole_plane.npz",
     "figure": null
   },
   "gather_z1pt5": {
@@ -419,7 +419,7 @@
       "1.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z1pt5.npz",
+    "trace": "output/traces/gather_z1pt5.npz",
     "figure": null
   },
   "gather_z2pt0": {
@@ -440,7 +440,7 @@
       "2"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z2pt0.npz",
+    "trace": "output/traces/gather_z2pt0.npz",
     "figure": null
   },
   "gather_z2pt5": {
@@ -461,7 +461,7 @@
       "2.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z2pt5.npz",
+    "trace": "output/traces/gather_z2pt5.npz",
     "figure": null
   },
   "gather_z3pt0": {
@@ -482,7 +482,7 @@
       "3"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z3pt0.npz",
+    "trace": "output/traces/gather_z3pt0.npz",
     "figure": null
   },
   "gather_z3pt5": {
@@ -503,7 +503,7 @@
       "3.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z3pt5.npz",
+    "trace": "output/traces/gather_z3pt5.npz",
     "figure": null
   },
   "gather_z4pt0": {
@@ -524,7 +524,7 @@
       "4"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z4pt0.npz",
+    "trace": "output/traces/gather_z4pt0.npz",
     "figure": null
   },
   "gather_z4pt5": {
@@ -545,7 +545,7 @@
       "4.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z4pt5.npz",
+    "trace": "output/traces/gather_z4pt5.npz",
     "figure": null
   },
   "gather_z5pt0": {
@@ -566,7 +566,7 @@
       "5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z5pt0.npz",
+    "trace": "output/traces/gather_z5pt0.npz",
     "figure": null
   },
   "gather_z6pt0": {
@@ -587,7 +587,7 @@
       "6"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z6pt0.npz",
+    "trace": "output/traces/gather_z6pt0.npz",
     "figure": null
   },
   "gather_z6pt5": {
@@ -608,7 +608,7 @@
       "6.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z6pt5.npz",
+    "trace": "output/traces/gather_z6pt5.npz",
     "figure": null
   },
   "gather_z7pt0": {
@@ -629,7 +629,7 @@
       "7"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z7pt0.npz",
+    "trace": "output/traces/gather_z7pt0.npz",
     "figure": null
   },
   "gather_z7pt5": {
@@ -650,7 +650,7 @@
       "7.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z7pt5.npz",
+    "trace": "output/traces/gather_z7pt5.npz",
     "figure": null
   },
   "gather_z8pt0": {
@@ -671,7 +671,7 @@
       "8"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z8pt0.npz",
+    "trace": "output/traces/gather_z8pt0.npz",
     "figure": null
   },
   "gather_z8pt5": {
@@ -692,7 +692,7 @@
       "8.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z8pt5.npz",
+    "trace": "output/traces/gather_z8pt5.npz",
     "figure": null
   },
   "gather_z9pt0": {
@@ -713,7 +713,7 @@
       "9"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z9pt0.npz",
+    "trace": "output/traces/gather_z9pt0.npz",
     "figure": null
   },
   "gather_z9pt5": {
@@ -734,7 +734,7 @@
       "9.5"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/gather_z9pt5.npz",
+    "trace": "output/traces/gather_z9pt5.npz",
     "figure": null
   },
   "truncated_domain": {
@@ -751,7 +751,7 @@
       "planar"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/truncated_domain.npz",
+    "trace": "output/traces/truncated_domain.npz",
     "figure": null
   },
   "incidence_band": {
@@ -770,7 +770,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/incidence_band.npz",
+    "trace": "output/traces/incidence_band.npz",
     "figure": null
   },
   "incidence_perfreq": {
@@ -791,7 +791,7 @@
       "perfreq"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/incidence_perfreq.npz",
+    "trace": "output/traces/incidence_perfreq.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt005": {
@@ -812,7 +812,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt005.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt005.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt01": {
@@ -833,7 +833,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt01.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt01.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt02": {
@@ -854,7 +854,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt02.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt02.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt04": {
@@ -875,7 +875,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt04.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt04.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt08": {
@@ -896,7 +896,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt08.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt08.npz",
     "figure": null
   },
   "convergence_dl_planar_0pt16": {
@@ -917,7 +917,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_planar_0pt16.npz",
+    "trace": "output/traces/convergence_dl_planar_0pt16.npz",
     "figure": null
   },
   "convergence_res_planar_0pt02": {
@@ -936,7 +936,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_planar_0pt02.npz",
+    "trace": "output/traces/convergence_res_planar_0pt02.npz",
     "figure": null
   },
   "convergence_res_planar_0pt04": {
@@ -955,7 +955,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_planar_0pt04.npz",
+    "trace": "output/traces/convergence_res_planar_0pt04.npz",
     "figure": null
   },
   "convergence_res_planar_0pt08": {
@@ -974,7 +974,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_planar_0pt08.npz",
+    "trace": "output/traces/convergence_res_planar_0pt08.npz",
     "figure": null
   },
   "convergence_res_planar_0pt16": {
@@ -993,7 +993,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_planar_0pt16.npz",
+    "trace": "output/traces/convergence_res_planar_0pt16.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt005": {
@@ -1016,7 +1016,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt005.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt005.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt01": {
@@ -1039,7 +1039,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt01.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt01.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt02": {
@@ -1062,7 +1062,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt02.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt02.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt04": {
@@ -1085,7 +1085,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt04.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt04.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt08": {
@@ -1108,7 +1108,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt08.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt08.npz",
     "figure": null
   },
   "convergence_dl_corrugated_0pt16": {
@@ -1131,7 +1131,7 @@
       "projected"
     ],
     "plane_file": "converted (convert_plane.py)",
-    "trace": "npz_data/convergence_dl_corrugated_0pt16.npz",
+    "trace": "output/traces/convergence_dl_corrugated_0pt16.npz",
     "figure": null
   },
   "convergence_res_corrugated_0pt02": {
@@ -1152,7 +1152,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_corrugated_0pt02.npz",
+    "trace": "output/traces/convergence_res_corrugated_0pt02.npz",
     "figure": null
   },
   "convergence_res_corrugated_0pt04": {
@@ -1173,7 +1173,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_corrugated_0pt04.npz",
+    "trace": "output/traces/convergence_res_corrugated_0pt04.npz",
     "figure": null
   },
   "convergence_res_corrugated_0pt08": {
@@ -1194,7 +1194,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_corrugated_0pt08.npz",
+    "trace": "output/traces/convergence_res_corrugated_0pt08.npz",
     "figure": null
   },
   "convergence_res_corrugated_0pt16": {
@@ -1215,7 +1215,7 @@
       "projected"
     ],
     "plane_file": "gprMax .out",
-    "trace": "npz_data/convergence_res_corrugated_0pt16.npz",
+    "trace": "output/traces/convergence_res_corrugated_0pt16.npz",
     "figure": null
   }
 }

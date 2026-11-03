@@ -13,6 +13,7 @@ import sys
 import numpy as np
 
 from rahpo.parameters import GeometryParams, MediaParams, RuntimeParams, SourceParams
+from rahpo.paths import IMAGES, LOGS, TRACES
 # simulation selects the non-interactive backend before pyplot is imported
 from rahpo.simulation import HAVE_JOBLIB, run_simulation, save_trace
 import matplotlib.pyplot as plt
@@ -26,11 +27,6 @@ def main(argv: list[str] | None = None) -> int:
     int
         0 when the trace is written, 1 when the run raises.
     """
-    # --- Output directories, created after the arguments are parsed ---
-    image_dir = "./images"
-    log_dir = "./logs"
-    data_dir = "./npz_data"
-
     # Logging is configured after the arguments are parsed, so that each run writes its own log
     # file, named after --output_name. Nothing may log before that.
 
@@ -114,20 +110,18 @@ def main(argv: list[str] | None = None) -> int:
                    help="Skip the diagnostic 3D geometry plot.")
 
     args = parser.parse_args(argv)
-    for d in [image_dir, log_dir, data_dir]:
-        os.makedirs(d, exist_ok=True)
+    log_path = LOGS / f"{args.output_name}.log"
 
     # --- Logging, named after this run ---
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler(os.path.join(log_dir, f"{args.output_name}.log"), mode="w"),
+            logging.FileHandler(log_path, mode="w"),
             logging.StreamHandler(sys.stdout),
         ],
     )
-    logging.info(f"RA-HPO run '{args.output_name}', log written to "
-                 f"{os.path.join(log_dir, args.output_name + '.log')}")
+    logging.info(f"RA-HPO run '{args.output_name}', log written to {log_path}")
 
     if not HAVE_JOBLIB:
         logging.warning("Joblib not found. Running in strictly serial mode.")
@@ -199,21 +193,24 @@ def main(argv: list[str] | None = None) -> int:
         
         # --- Handle Output ---
         base_filename = args.output_name
-        save_trace(os.path.join(data_dir, f"{base_filename}.npz"), tvec, trace)
+        trace_path = TRACES / f"{base_filename}.npz"
+        save_trace(str(trace_path), tvec, trace)
         if run.incidence == "perfreq":
             pos, spread, w = run.incidence_spread
-            np.savez(os.path.join(data_dir, f"{base_filename}_incidence.npz"),
+            incidence_path = TRACES / f"{base_filename}_incidence.npz"
+            np.savez(incidence_path,
                      elem_pos=pos, spread_rad=spread, contribution=w)
-            logging.info(f"Incidence spread saved to {base_filename}_incidence.npz")
-        
+            logging.info(f"Incidence spread saved to {incidence_path}")
+
         plt.figure()
         plt.plot(tvec*1e9, trace, 'r-')
         plt.xlabel("Time [ns]")
         plt.ylabel("Normalized amplitude")
         plt.title("Trace (RA + HPO)")
         plt.grid(True)
-        plt.savefig(os.path.join(image_dir, f"{base_filename}.png"), dpi=300)
-        logging.info(f"Plot saved to {os.path.join(image_dir, f'{base_filename}.png')}")
+        image_path = IMAGES / f"{base_filename}.png"
+        plt.savefig(image_path, dpi=300)
+        logging.info(f"Plot saved to {image_path}")
         
     except Exception as e:
         logging.error("Simulation failed with exception:", exc_info=True)

@@ -8,8 +8,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from rahpo.cases import BY_KEY, CASES, MODELS, REPO, plane_two_medium
-from rahpo.traces import band_match, compare_traces
+from examples.cases import BY_KEY, CASES, MODELS, REPO, plane_two_medium
+from examples.traces import band_match, compare_traces
 
 
 def test_case_keys_are_unique_and_the_model_tree_is_the_repository():
@@ -39,3 +39,37 @@ def test_band_match_of_zeros_is_zero():
     matched = band_match(time, np.zeros(64))
     assert matched.shape == (64,)
     assert np.all(matched == 0.0)
+
+
+def test_output_directories_are_created_on_import():
+    import os
+
+    from examples.cases import FIGURE_DIR, METRICS_DIR, PLANE_DIR, TRACE_DIR
+    from rahpo.paths import (
+        COMPARISONS,
+        FIGURES,
+        IMAGES,
+        LOGS,
+        METRICS,
+        OUTPUT_DIR,
+        PLANES,
+        PROPAGATION,
+        TRACES,
+    )
+
+    assert OUTPUT_DIR == REPO / "output"
+    assert (TRACE_DIR, PLANE_DIR, FIGURE_DIR, METRICS_DIR) == (TRACES, PLANES, FIGURES, METRICS)
+    folders = {
+        "RAHPO_TRACE_DIR": TRACES,
+        "RAHPO_LOG_DIR": LOGS,
+        "RAHPO_IMAGE_DIR": IMAGES,
+        "RAHPO_FIGURE_DIR": FIGURES,
+        "RAHPO_METRICS_DIR": METRICS,
+        "RAHPO_PLANE_DIR": PLANES,
+        "RAHPO_PROPAGATION_DIR": PROPAGATION,
+        "RAHPO_COMPARISON_DIR": COMPARISONS,
+    }
+    for env_name, folder in folders.items():
+        assert folder.is_dir()
+        if env_name not in os.environ:
+            assert folder.is_relative_to(OUTPUT_DIR)

@@ -1,4 +1,4 @@
-"""Rows of Tables 2 and 3 of the paper, printed as LaTeX from metrics/accuracy_metrics.csv.
+"""Rows of Tables 2 and 3 of the paper, printed as LaTeX from output/metrics/accuracy_metrics.csv.
 
 Table 2 (accuracy): chi, NRMSE and peak ratio of the nine single traces, plus the range of the
 Pearson correlation. Table 3 (roughness): the corrugation amplitude A, the peak-to-peak
@@ -7,11 +7,11 @@ atan(A max(k_y, k_z)) in degrees, the smallest radius of curvature R_c = 1 / (A 
 with k_y = pi/2, k_z = 3 pi/8 and lambda = 1.0 m, then peak ratio, r, chi and NRMSE. Also prints
 the roughness limit, the largest amplitude up to which chi stays below twice the finite planar
 value, and the limit the same rule gives against the refined planar chi of
-metrics/refined_reference.csv when that file exists.
+output/metrics/refined_reference.csv when that file exists.
 
 Usage
 -----
-    python tools/make_tables.py [--csv metrics/accuracy_metrics.csv]
+    python tools/make_tables.py [--csv output/metrics/accuracy_metrics.csv]
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import METRICS_DIR  # noqa: E402
+from examples.cases import METRICS_DIR  # noqa: E402
 ACCURACY = [  # Table 2 label -> case name in the CSV
     ("Infinite planar", "Infinite planar"),
     ("Finite planar", "Finite planar"),

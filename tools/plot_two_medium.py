@@ -13,7 +13,7 @@ The FDTD reference, the direct-wave subtraction, the evaluation window and the m
 those of plot_traces.py, so the numbers are comparable with Table 2.
 
 Cases (cases.py): finite_planar_arms (matched), two_medium_eps6, two_medium_eps12.
-Outputs: figures/Traces_two_medium.pdf and metrics/trace_metrics_two_medium.csv.
+Outputs: output/figures/Traces_two_medium.pdf and output/metrics/trace_metrics_two_medium.csv.
 
 Usage:  python plot_two_medium.py
 """
@@ -27,7 +27,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import BY_KEY, FIGURE_DIR, METRICS_DIR, TIME_RANGE  # noqa: E402
+from examples.cases import BY_KEY, FIGURE_DIR, METRICS_DIR, TIME_RANGE  # noqa: E402
 from plot_traces import (FONT_SIZE, compare_traces, load_rahpo,  # noqa: E402
                          load_scattered_gprmax, set_style)
 

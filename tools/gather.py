@@ -6,7 +6,7 @@ trace from the one reference plane by axial shift (cases gather_z*), against one
 records the same receivers (gprMax_models/For_gather/). The FDTD reference of each receiver is
 the fractured run minus the no-fracture run at the same receiver.
 
-Writes metrics/gather.csv (one row per receiver) and figures/Traces_gather.pdf: three panels
+Writes output/metrics/gather.csv (one row per receiver) and output/figures/Traces_gather.pdf: three panels
 sharing both axes and one amplitude scale, the FDTD gather, the RA-HPO gather and their
 difference, as wiggle traces against receiver depth over the evaluation window.
 
@@ -24,7 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import (BY_KEY, FIGURE_DIR, GATHER_Z, METRICS_DIR, TIME_RANGE, Z_SOURCE,  # noqa: E402
+from examples.cases import (BY_KEY, FIGURE_DIR, GATHER_Z, METRICS_DIR, TIME_RANGE, Z_SOURCE,  # noqa: E402
                    fdtd_output)
 from plot_traces import FONT_SIZE, compare_traces, load_rahpo, load_scattered_gprmax, set_style  # noqa: E402
 

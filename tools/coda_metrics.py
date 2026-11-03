@@ -5,7 +5,7 @@ For each correlation length, and for the homogeneous parallel fracture for compa
   1. the energy arriving after the main lobe, as a percentage of the main-lobe energy;
   2. the number of local maxima of |trace| above 5% and above 10% of the peak, over the window
      that follows the main lobe.
-Both are computed for the FDTD reference and for RA-HPO. Writes metrics/coda_metrics.csv.
+Both are computed for the FDTD reference and for RA-HPO. Writes output/metrics/coda_metrics.csv.
 
 Usage:  python tools/coda_metrics.py [--out-csv FILE]
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import BY_KEY, METRICS_DIR  # noqa: E402
+from examples.cases import BY_KEY, METRICS_DIR  # noqa: E402
 from plot_traces import load_rahpo, load_scattered_gprmax  # noqa: E402
 
 # The main lobe and the window that follows it, where the parallel fracture's edge

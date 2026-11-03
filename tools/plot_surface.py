@@ -4,7 +4,7 @@ transmitter and receiver positions and, for the antenna case, the antenna arms.
 
 The panels are drawn in the style of the trace panels of plot_traces.py (8 pt Arial, no
 title, vector PDF), so that a geometry panel and its trace panel match side by side. They are
-written to figures/.
+written to output/figures/.
 
 Fracture surfaces follow ra_hpo.fracture_surface_function, which evaluates x = f(y, z) in
 local coordinates (y - ymin, z - zmin) on the [1, 9] m x [1, 9] m generation window.
@@ -24,7 +24,7 @@ from matplotlib import font_manager
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rahpo.cases import FIGURE_DIR as FIG_DIR
+from examples.cases import FIGURE_DIR as FIG_DIR
 from rahpo.fracture import fracture_surface_function
 from rahpo.parameters import GeometryParams
 
