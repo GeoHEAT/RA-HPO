@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -29,7 +30,7 @@ def test_identical_traces_have_no_misfit():
     data = np.sin(2 * np.pi * time / 40.0)
     metrics = compare_traces(time, data, time, data, time_range=(0.0, 180.0))
     assert metrics["Relative misfit (%)"] == 0.0
-    assert metrics["Pearson r"] == 1.0
+    assert metrics["Pearson r"] == pytest.approx(1.0, abs=1e-12)
     assert metrics["Peak ratio (ref/RA-HPO)"] == 1.0
     assert metrics["Peak-time diff (ns)"] == 0.0
 

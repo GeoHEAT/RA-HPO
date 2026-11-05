@@ -42,6 +42,12 @@ from examples.traces import (band_match, compare_traces, load_analytic, load_gpr
 
 METRICS_CSV = METRICS_DIR / "trace_metrics.csv"
 
+# Figure style: sized for a subfigure of about 0.58 of the text width, vector output
+FIGSIZE = (3.6, 2.3)           # inches
+FONT_SIZE = 8
+COLORS = {"analytic": "#000000", "gprmax": "#0800ff", "rahpo": "#fe0101"}
+LINESTYLES = {"analytic": (0, (6, 2, 1, 2)), "gprmax": "-", "rahpo": "--"}
+
 # -----------------------------
 # Plotting
 # -----------------------------
