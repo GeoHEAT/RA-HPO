@@ -22,9 +22,10 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ra_hpo import GeometryParams, MediaParams, get_fracture_mesh  # noqa: E402
+from rahpo.fracture import get_fracture_mesh
+from rahpo.parameters import GeometryParams, MediaParams
 
 MEDIA = MediaParams()
 BASE = GeometryParams()          # ellength 0.01 m, 8 x 8 m extent, as every bounded case
@@ -66,7 +67,6 @@ def test_corrugation_matches_analytic():
     np.testing.assert_allclose(a_true[inner], exact[inner], rtol=1e-4)
     excess = a_true.mean() / g.ellength ** 2 - 1
     assert 0.028 < excess < 0.031, excess
-    return excess
 
 
 def test_projected_and_unknown():
@@ -82,6 +82,6 @@ def test_projected_and_unknown():
 if __name__ == "__main__":
     test_planar_unchanged()
     test_tilted_is_secant()
-    ex = test_corrugation_matches_analytic()
+    test_corrugation_matches_analytic()
     test_projected_and_unknown()
-    print(f"test_element_area: 4 checks passed (corrugation A = 0.25 m, mean area excess {100 * ex:.2f} %)")
+    print("test_element_area: 4 checks passed")

@@ -1,6 +1,6 @@
 """Check the worked-example trace against the stored reference trace.
 
-    python tools/check_example.py examples/example_reference.npz npz_data/example.npz [--max-chi 1.0]
+    python tools/check_example.py examples/example_reference.npz output/traces/example.npz [--max-chi 1.0]
 
 Both traces are interpolated onto one grid over their common time span. Prints the relative
 misfit chi = ||c - f|| / ||f|| (f the reference), the peak ratio and the peak-time difference,

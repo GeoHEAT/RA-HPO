@@ -20,9 +20,10 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ra_hpo import MediaParams, WorkerParams, element_contribution  # noqa: E402
+from rahpo.parameters import MediaParams, WorkerParams
+from rahpo.scattering import element_contribution
 
 NFREQ = 8
 
@@ -64,37 +65,31 @@ def build(n_el_y: float, n_el_z: float) -> tuple[np.ndarray, WorkerParams, Media
     return elempos, p, media
 
 
-def main() -> int:
-    ok = True
-
-    # 1. exactly normal incidence: element at the source's y and z, so k_dir = -n_hat
+def test_normal_incidence_is_finite():
     elempos, p, media = build(5.0, 5.5)
-    try:
-        c = element_contribution(0, elempos, p, media)
-        finite = bool(np.all(np.isfinite(c)))
-        print(f"  normal incidence      -> returned shape {c.shape}, all finite: {finite}")
-        ok &= finite
-    except UnboundLocalError as exc:
-        print(f"  normal incidence      -> FAILED, {type(exc).__name__}: {exc}")
-        ok = False
+    contribution = element_contribution(0, elempos, p, media)
+    assert contribution.shape == (NFREQ,)
+    assert np.all(np.isfinite(contribution))
 
-    # 2. off-normal element
+
+def test_off_normal_incidence_is_nonzero():
     elempos, p, media = build(5.6, 6.2)
-    c_off = element_contribution(0, elempos, p, media)
-    nonzero = bool(np.any(c_off != 0))
-    print(f"  off-normal incidence  -> non-zero contribution: {nonzero}")
-    ok &= nonzero
+    contribution = element_contribution(0, elempos, p, media)
+    assert np.any(contribution != 0)
 
-    # 3. an element whose ray leaves the recorded plane returns exactly zero, which the solver
-    #    counts as a dropped element
+
+def test_ray_outside_the_plane_is_dropped():
     elempos, p, media = build(5.0, 60.0)
-    c_out = element_contribution(0, elempos, p, media)
-    dropped = bool(not np.any(c_out))
-    print(f"  ray outside the plane -> exactly zero (counted as dropped): {dropped}")
-    ok &= dropped
+    contribution = element_contribution(0, elempos, p, media)
+    assert not np.any(contribution)
 
-    print("\nPASS" if ok else "\nFAIL")
-    return 0 if ok else 1
+
+def main() -> int:
+    test_normal_incidence_is_finite()
+    test_off_normal_incidence_is_nonzero()
+    test_ray_outside_the_plane_is_dropped()
+    print("test_normal_incidence: 3 checks passed")
+    return 0
 
 
 if __name__ == "__main__":

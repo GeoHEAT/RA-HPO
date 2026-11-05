@@ -14,7 +14,7 @@ d is the reference (FDTD unless stated) and p the compared trace. chi_s equals s
 with c the uncentered correlation of p and d. chi is also evaluated over 100 to 250 ns, to show
 that it does not depend on the window once the window contains the response.
 
-Groups (metrics/accuracy_metrics.csv): the single traces of Table 2 ("accuracy") and the
+Groups (output/metrics/accuracy_metrics.csv): the single traces of Table 2 ("accuracy") and the
 corrugation amplitudes of Table 3 ("roughness"); the plane recorded without the borehole
 ("control"); the sixteen receivers of the gather; the two-medium runs; FDTD and RA-HPO against
 the exact solution of the infinite case ("exact"); a pure delay or amplitude offset of the
@@ -37,7 +37,7 @@ Further tables
     closed_form.csv          R_c = 1/(A k_y^2) and k R_c of the corrugation; |R|/|r12| of a
                              water-filled slab; the skin depth of the heterogeneous fill
 
-Usage:  python tools/accuracy_metrics.py [--out-dir metrics]
+Usage:  python tools/accuracy_metrics.py [--out-dir output/metrics]
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import hilbert
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
+from examples.cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
 from plot_traces import (band_match, compare_traces, load_analytic, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)
 

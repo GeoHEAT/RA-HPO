@@ -24,7 +24,7 @@ misses it.
 
 Usage
 -----
-    python tools/make_example_plane.py --in planes/3D_8x10x10-shifted_nofrac_planex3_h0pt01.h5 \\
+    python tools/make_example_plane.py --in output/planes/3D_8x10x10-shifted_nofrac_planex3_h0pt01.h5 \\
         --out examples/example_plane.h5 [--y 4.4 5.6] [--z 4.6 6.4] [--decimate 8]
 """
 from __future__ import annotations

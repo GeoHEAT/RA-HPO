@@ -23,7 +23,7 @@ gprMax.
 | Source | 100 MHz Ricker; 256 frequencies up to 600 MHz, 8x oversampled in time |
 
 These match the full-domain FDTD model
-`gprMax_models/For_full-domain_verifications/3D8x8x8-shifted_nobh_frac-dist6-2h_h0pt010.in`
+`examples/gprMax_models/For_full-domain_verifications/3D8x8x8-shifted_nobh_frac-dist6-2h_h0pt010.in`
 (source (0.5, 4.0, 4.0), receiver (0.5, 4.0, 3.0), 0.02 m layer centered at x = 6.5 m).
 
 ## Reproducing
@@ -31,14 +31,14 @@ These match the full-domain FDTD model
 MATLAB (the script uses only `integral`, `besselj` and `writematrix`):
 
 ```matlab
-cd analytic_reference
+cd examples/analytic
 exxgprt          % writes vertical_plannar_2cm_analy_trace.csv in the current folder
 ```
 
 Without MATLAB, from the repository root:
 
 ```bash
-python analytic_reference/exxgprt_check.py
+python examples/analytic/exxgprt_check.py
 # d=0.02 ncells=1: time axis equal True; max|diff|/peak = 1.51e-12
-python analytic_reference/j2_term_check.py
+python examples/analytic/j2_term_check.py
 ```

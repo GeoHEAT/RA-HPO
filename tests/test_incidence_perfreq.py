@@ -19,10 +19,11 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import ra_hpo  # noqa: E402
-from ra_hpo import MediaParams, WorkerParams, element_contribution  # noqa: E402
+import rahpo.scattering as scattering
+from rahpo.parameters import MediaParams, WorkerParams
+from rahpo.scattering import element_contribution
 
 NFREQ = 16
 
@@ -73,38 +74,40 @@ def rel(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.linalg.norm(a - b) / np.linalg.norm(b))
 
 
-def main() -> int:
-    ok = True
-
-    # 1. per-frequency path with every direction forced to the band direction
+def test_constant_direction_matches_the_band_path():
     elempos, p, media = build(5.6, 6.2, rotate=True)
     band = element_contribution(0, elempos, p, media)
-    real_dirs = ra_hpo.per_frequency_directions
-    ra_hpo.per_frequency_directions = lambda S, k: (np.repeat(k[:, None], S.shape[1], axis=1), 0.0)
+    real_dirs = scattering.per_frequency_directions
+    scattering.per_frequency_directions = lambda S, k: (np.repeat(k[:, None], S.shape[1], axis=1), 0.0)
     try:
         forced, _ = element_contribution(0, elempos, replace(p, incidence="perfreq"), media)
     finally:
-        ra_hpo.per_frequency_directions = real_dirs
-    e1 = rel(forced, band)
-    print(f"  constant direction: perfreq vs band, relative difference {e1:.2e}")
-    ok &= e1 < 1e-12
+        scattering.per_frequency_directions = real_dirs
+    assert rel(forced, band) < 1e-12
 
-    # 2. a field whose direction turns across the band
-    pf, spread = element_contribution(0, elempos, replace(p, incidence="perfreq"), media)
-    e2 = rel(pf, band)
-    finite = bool(np.all(np.isfinite(pf)))
-    print(f"  turning direction:  perfreq vs band, relative difference {e2:.2e}, "
-          f"spread {np.degrees(spread):.2f} deg, all finite: {finite}")
-    ok &= finite and e2 > 1e-6 and spread > 0.0
 
-    # 3. the default returns a bare spectrum
-    c = element_contribution(0, elempos, p, media)
-    bare = isinstance(c, np.ndarray) and c.shape == (NFREQ,)
-    print(f"  default mode returns a bare spectrum: {bare}")
-    ok &= bare
+def test_turning_direction_differs_and_is_finite():
+    elempos, p, media = build(5.6, 6.2, rotate=True)
+    band = element_contribution(0, elempos, p, media)
+    per_freq, spread = element_contribution(0, elempos, replace(p, incidence="perfreq"), media)
+    assert np.all(np.isfinite(per_freq))
+    assert rel(per_freq, band) > 1e-6
+    assert spread > 0.0
 
-    print("\nPASS" if ok else "\nFAIL")
-    return 0 if ok else 1
+
+def test_default_returns_a_bare_spectrum():
+    elempos, p, _media = build(5.6, 6.2, rotate=True)
+    contribution = element_contribution(0, elempos, p, _media)
+    assert isinstance(contribution, np.ndarray)
+    assert contribution.shape == (NFREQ,)
+
+
+def main() -> int:
+    test_constant_direction_matches_the_band_path()
+    test_turning_direction_differs_and_is_finite()
+    test_default_returns_a_bare_spectrum()
+    print("test_incidence_perfreq: 3 checks passed")
+    return 0
 
 
 if __name__ == "__main__":

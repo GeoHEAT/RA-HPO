@@ -4,7 +4,7 @@ transmitter and receiver positions and, for the antenna case, the antenna arms.
 
 The panels are drawn in the style of the trace panels of plot_traces.py (8 pt Arial, no
 title, vector PDF), so that a geometry panel and its trace panel match side by side. They are
-written to figures/.
+written to output/figures/.
 
 Fracture surfaces follow ra_hpo.fracture_surface_function, which evaluates x = f(y, z) in
 local coordinates (y - ymin, z - zmin) on the [1, 9] m x [1, 9] m generation window.
@@ -23,7 +23,10 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
-from cases import FIGURE_DIR as FIG_DIR
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from examples.cases import FIGURE_DIR as FIG_DIR
+from rahpo.fracture import fracture_surface_function
+from rahpo.parameters import GeometryParams
 
 FIGSIZE = (3.4, 3.0)   # inches, before tight cropping (about 2.5 in wide after cropping)
 FONT_SIZE = 8
@@ -67,30 +70,15 @@ PANELS = [
 ]
 
 
-# --- 2. Fracture surfaces (same formulas as ra_hpo.fracture_surface_function) ---
+# The drawn surface is the solver's surface, not a second copy of the formulas.
 def fracture_surface(kind, Y, Z, s: Scene):
     """x = f(y, z) in local coordinates Y = y - ymin, Z = z - zmin."""
-    if kind == "planar":
-        return np.full_like(Y, s.x_base)
-    if kind == "planar-tilted":
-        return (Z - 50.25) / (-7.11537)
-    if kind == "piecewise_yz":
-        y0 = s.y_center - s.ymin
-        z0 = s.z_center - s.zmin
-        R = np.sqrt((Z - z0)**2 + (Y - y0)**2)
-        inner_radius = 1.5
-        outer_radius = 1.5
-        x_surf = np.full_like(R, s.x_base)          # flat region, R <= inner_radius
-        mask = R > outer_radius                       # parabolic bowl (no transition ring)
-        drop_at_boundary = 0.1 * (outer_radius - inner_radius)
-        x_surf[mask] = s.x_base - drop_at_boundary + (-3.0 / 18.0) * (R[mask] - outer_radius)**2
-        return x_surf
-    if kind == "sinusoidal_3d":
-        A = 0.25
-        kz = 2 * np.pi / ((s.zmax - s.zmin) * 2 / 3)
-        ky = 2 * np.pi / ((s.ymax - s.ymin) / 2)
-        return A * np.sin(kz * Z) * np.sin(ky * Y) + s.x_base
-    raise ValueError(f"Unknown fracture type: {kind}")
+    geom = GeometryParams(
+        fracture_type=kind, amplitude=0.25,
+        ymin=s.ymin, ymax=s.ymax, zmin=s.zmin, zmax=s.zmax,
+        y_center=s.y_center, z_center=s.z_center, x_base=s.x_base,
+    )
+    return fracture_surface_function(Y, Z, geom)
 
 
 def create_cylinder(p0, p1, radius, num_theta=48, num_z=24):

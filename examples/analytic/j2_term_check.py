@@ -12,7 +12,7 @@ offset r = 1 m is small against the two-way distance z = 11.98 m. This script ev
 terms with the integration of exxgprt_check.py and reports the peak of the J0 trace, the peak of
 the J2 trace and the peak of their sum, for the configuration of exxgprt.m (inline, phi = 0).
 
-    python analytic_reference/j2_term_check.py
+    python examples/analytic/j2_term_check.py
 """
 import numpy as np
 from scipy.integrate import quad

@@ -17,8 +17,10 @@ plane as p (same convention as compare_traces and validate_propagation):
     Peak-time difference = t(argmax_k |p_k|) - t(argmax_k |d_k|)
 
 Usage:
-    python compare_ref_planes.py TRUNCATED.out REFERENCE.out
-    python compare_ref_planes.py plane_4m.out plane_8m.out --comps Ez Ex Ey
+    python tools/compare_ref_planes.py TRUNCATED.out REFERENCE.out
+    python tools/compare_ref_planes.py plane_4m.out plane_8m.out --comps Ez Ex Ey
+
+Metric maps are written to output/comparisons/ unless --outdir is set.
 
 Both files must record the same plane position, the same receiver grid and the same time
 step; the script checks all three and refuses to compare mismatched planes.
@@ -35,6 +37,8 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rahpo.paths import COMPARISONS  # noqa: E402
 from validate_propagation import compute_metrics, load_gprmax_plane_decimated  # noqa: E402
 
 # Acceptance thresholds of the test
@@ -177,7 +181,8 @@ def main():
                     choices=["Ex", "Ey", "Ez"], help="field components to compare")
     ap.add_argument("--y-step", type=int, default=4, help="receiver decimation in y")
     ap.add_argument("--z-step", type=int, default=4, help="receiver decimation in z")
-    ap.add_argument("--outdir", default=".", help="directory for the .npz and .png outputs")
+    ap.add_argument("--outdir", default=str(COMPARISONS),
+                    help="directory for the .npz and .png outputs")
     args = ap.parse_args()
 
     set_style()

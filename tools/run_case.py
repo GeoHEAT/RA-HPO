@@ -12,7 +12,7 @@ Usage
     python tools/run_case.py finite_planar                 # print the steps
     python tools/run_case.py finite_planar --run --cores 8  # run RA-HPO
     python tools/run_case.py --commands --group roughness  # RA-HPO commands of a group, one per line
-    python tools/run_case.py --write-json                  # configs/cases.json
+    python tools/run_case.py --write-json                  # examples/cases.json
 """
 from __future__ import annotations
 
@@ -24,7 +24,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cases import CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case, plane_input  # noqa: E402
+from examples.cases import (CASES, BY_KEY, MODELS, PLANE_RES, REPO, Case,  # noqa: E402
+                            plane_input, trace_file)
 
 
 def rel(p: Path) -> str:
@@ -50,27 +51,31 @@ def steps(c: Case, cores: int) -> list[str]:
     for m in plane_models(c):
         out.append(f"python -m gprMax {rel(MODELS / m)}.in")
         if not c.raw_plane:
-            out.append(f"python convert_plane.py --in {rel(MODELS / m)}.out "
+            out.append(f"python tools/convert_plane.py --in {rel(MODELS / m)}.out "
                        f"--out {rel(plane_input(Case('_', '', '', m)))} --target_res {PLANE_RES:g}")
     if c.fdtd:
         out.append("# 2. full-domain reference (gprMax)")
         for m in (c.fdtd, c.direct):
             if m:
                 out.append(f"python -m gprMax {rel(MODELS / m)}.in")
-    out.append("# 3. RA-HPO, writes npz_data/" + c.key + ".npz")
+    out.append("# 3. RA-HPO, writes " + rel(trace_file(c.key)))
     out.append(shlex.join(solver_command(c, cores)))
     return out
 
 
+def _model(name: str | None) -> str | None:
+    return None if name is None else rel(MODELS / f"{name}.in")
+
+
 def as_dict(c: Case) -> dict:
     return {"label": c.label, "group": c.group,
-            "reference_plane_tx": f"gprMax_models/{c.plane_tx}.in",
-            "reference_plane_rx": f"gprMax_models/{c.plane_rx or c.plane_tx}.in",
-            "full_domain_model": f"gprMax_models/{c.fdtd}.in" if c.fdtd else None,
-            "direct_wave_model": f"gprMax_models/{c.direct}.in" if c.direct else None,
+            "reference_plane_tx": _model(c.plane_tx),
+            "reference_plane_rx": _model(c.plane_rx or c.plane_tx),
+            "full_domain_model": _model(c.fdtd),
+            "direct_wave_model": _model(c.direct),
             "solver_flags": ["--target_res", f"{c.target_res:g}"] + list(c.flags),
             "plane_file": "gprMax .out" if c.raw_plane else "converted (convert_plane.py)",
-            "trace": f"npz_data/{c.key}.npz", "figure": c.figure}
+            "trace": rel(trace_file(c.key)), "figure": c.figure}
 
 
 def main() -> int:
@@ -81,12 +86,12 @@ def main() -> int:
     ap.add_argument("--group", help="restrict --list or --commands to one group")
     ap.add_argument("--run", action="store_true", help="run the RA-HPO command of the case")
     ap.add_argument("--cores", type=int, default=24)
-    ap.add_argument("--write-json", action="store_true", help="write configs/cases.json")
+    ap.add_argument("--write-json", action="store_true", help="write examples/cases.json")
     a = ap.parse_args()
 
     selected = [c for c in CASES if not a.group or c.group == a.group]
     if a.write_json:
-        p = REPO / "configs" / "cases.json"
+        p = REPO / "examples" / "cases.json"
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps({c.key: as_dict(c) for c in CASES}, indent=2) + "\n")
         print(f"wrote {rel(p)} with {len(CASES)} cases")

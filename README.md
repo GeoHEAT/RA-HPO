@@ -13,13 +13,25 @@ receiver through electromagnetic reciprocity.
 The method applies to fractures beyond the reference plane, in a homogeneous host rock, that do
 not intersect the borehole and whose surfaces are single-valued as seen from the plane.
 
-This repository contains the solver, the gprMax input files of every validation case, and the
-scripts that reproduce the results of the accompanying paper (see [Citation](#citation)).
+This repository contains the solver (`rahpo`), a worked example, and the scripts that
+reproduce the paper (see [Citation](#citation)). The cases of the paper are not part of
+the solver. They live in [`examples/`](examples/) and are documented in
+[docs/library.md](docs/library.md).
+
+The four fracture shapes below are drawn by [`examples/showcase.py`](examples/showcase.py)
+from the same surface function the solver meshes. The trace is the worked example
+shipped in `examples/example_reference.npz`: a 1 m by 1 m planar fracture, shown over
+the arrival of the reflection.
+
+![Four fracture shapes of the paper](docs/images/fracture_shapes.png)
+
+![Worked-example trace](docs/images/example_trace.png)
 
 ## Contents
 
 - [Installation](#installation)
 - [Quick start](#quick-start)
+- [Using the library](docs/library.md)
 - [Running the solver](#running-the-solver)
 - [Reproducing the paper](#reproducing-the-paper)
 - [Repository layout](#repository-layout)
@@ -37,6 +49,7 @@ cd WP5T1_borehole_radar_forward_solver
 conda env create -f environment.yml            # solver and gprMax (Python 3.11)
 conda env create -f environment-analysis.yml   # figures and tables (Python 3.12)
 conda activate rahpo
+pip install -e ".[dev]"                 # importable package; pytest comes with the dev extra
 ```
 
 The solver needs NumPy, SciPy, Matplotlib, h5py and joblib. Without joblib it runs serially.
@@ -58,7 +71,7 @@ repository root:
 ```bash
 python ra_hpo.py --tx_plane_file examples/example_plane.h5 --rx_plane_file examples/example_plane.h5 \
     --fracture_type planar --fracture_extent 4.5 5.5 4.5 5.5 --cores 4 --no_viz --output_name example
-python tools/check_example.py examples/example_reference.npz npz_data/example.npz
+python tools/check_example.py examples/example_reference.npz output/traces/example.npz
 ```
 
 Expected output of the check:
@@ -68,31 +81,36 @@ example check: chi 0.0000 %  peak ratio (reference/trace) 1.00000  peak-time dif
 ```
 
 The run takes about 10 s on a laptop. The line `[DROPPED] 0 of 10000 elements` in
-`logs/example.log` confirms that every ray to the fracture crosses the cut plane.
+`output/logs/example.log` confirms that every ray to the fracture crosses the cut plane.
 
 The tests check single components of the solver and need no data:
 
 ```bash
-python tests/test_normal_incidence.py
-python tests/test_incidence_perfreq.py
-python tests/test_element_area.py
-python tests/test_make_example_plane.py
+pytest
 ```
 
 ## Running the solver
+
+`ra_hpo.py` in the repository root is the command used in the paper. It contains no solver
+code: it calls `rahpo.cli`, and the method lives in the `rahpo` package. The same command
+line is `python -m rahpo`. After `pip install -e .`, the installed `rahpo` script does that
+too. `tools/run_case.py` prints `python ra_hpo.py` so a case can be copied as it appears in
+the paper.
 
 ```bash
 python ra_hpo.py --tx_plane_file PLANE --rx_plane_file PLANE [options] --output_name NAME
 ```
 
-The reference plane is a gprMax `.out` file or a plane converted with `convert_plane.py`. When
+The reference plane is a gprMax `.out` file or a plane converted with `tools/convert_plane.py`. When
 the transmitter and receiver plane files are the same, the reciprocal field is obtained by
 shifting the forward field along the borehole axis, so one FDTD simulation serves both. A
 separate receiver plane is needed when the near-field environment of the receiver differs from
 that of the transmitter, for example with antenna arms that are not symmetric about the feed.
 
-Each run writes, relative to the working directory, `npz_data/NAME.npz` (the trace),
-`images/NAME.png` (a plot of the trace) and `logs/NAME.log`.
+Each run writes `output/traces/NAME.npz` (the trace), `output/images/NAME.png` (a plot of the
+trace) and `output/logs/NAME.log`. With `--no_viz` omitted, the geometry plot is
+`output/images/RA_HPO_Geometry_Surface.png`. These folders are created when the package is
+imported, which is the first thing `python ra_hpo.py` does.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -113,7 +131,7 @@ Each run writes, relative to the working directory, `npz_data/NAME.npz` (the tra
 | `--no_viz` | off | Skip the diagnostic plot of the fracture geometry |
 
 `python ra_hpo.py --help` describes every option. Settings without an option, such as the host
-rock properties and the source wavelet, are set in the dataclasses at the top of `ra_hpo.py`
+rock properties and the source wavelet, are set in the dataclasses in `rahpo/parameters.py`
 (`MediaParams`, `SourceParams`, `GeometryParams`, `RuntimeParams`).
 
 **Source and receiver positions.** The reference plane is recorded for one source position, so
@@ -127,21 +145,21 @@ Converting it once makes each component one contiguous array, which the solver r
 faster:
 
 ```bash
-python convert_plane.py --in plane.out --out plane.h5 [--target_res 0.04]
+python tools/convert_plane.py --in plane.out --out plane.h5 [--target_res 0.04]
 ```
 
 ## Reproducing the paper
 
-The cases of the paper are defined in [cases.py](cases.py), and
-[configs/cases.json](configs/cases.json) lists them in machine-readable form. Every RA-HPO trace
-is written as `npz_data/<case>.npz`, and the analysis scripts read it under that name. All
+The cases of the paper are defined in [examples/cases.py](examples/cases.py), and
+[examples/cases.json](examples/cases.json) lists them in machine-readable form. Every RA-HPO trace
+is written as `output/traces/<case>.npz`, and the analysis scripts read it under that name. All
 commands run from the repository root.
 
 **1. Fracture geometry volumes**, read by the full-domain gprMax models:
 
 ```bash
-python generate_geometry_h5.py --all --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
-python generate_heter_geometry_h5_and_materials.py --out-dir gprMax_models/For_full-domain_verifications/input_h5_geom
+python tools/generate_geometry_h5.py --all --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
+python tools/generate_heter_geometry_h5_and_materials.py --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
 ```
 
 **2 to 4. gprMax, plane conversion and RA-HPO, per case.**
@@ -161,62 +179,69 @@ models also write a geometry view and field snapshots, which the traces do not n
 the `#geometry_view` line and the `#python` snapshot block saves time and disk space.
 
 **5. Metrics, tables and figures.** The analysis scripts read the gprMax outputs, the RA-HPO
-traces and the geometry files from their default locations and write to `metrics/` and
-`figures/`. Every FDTD and exact reference trace is passed through the Gaussian window that
-`ra_hpo.py` applies to its own spectrum (`band_match` in `plot_traces.py`), so that both traces
+traces and the geometry files from their default locations and write to `output/metrics/` and
+`output/figures/`. Every FDTD and exact reference trace is passed through the Gaussian window that
+`ra_hpo.py` applies to its own spectrum (`band_match` in `examples/traces.py`), so that both traces
 of a comparison cover the same band.
 
 | Result | Command | Output |
 |---|---|---|
-| Trace comparisons with full-domain FDTD and the exact solution | `python plot_traces.py` | `figures/Traces_*.pdf`, `metrics/trace_metrics.csv` |
-| Accuracy and roughness metrics, misfit decomposition, no-borehole control, domain truncation, incidence spread | `python tools/accuracy_metrics.py` | `metrics/accuracy_metrics.csv` and five further tables |
+| Trace comparisons with full-domain FDTD and the exact solution | `python tools/plot_traces.py` | `output/figures/Traces_*.pdf`, `output/metrics/trace_metrics.csv` |
+| Accuracy and roughness metrics, misfit decomposition, no-borehole control, domain truncation, incidence spread | `python tools/accuracy_metrics.py` | `output/metrics/accuracy_metrics.csv` and five further tables |
 | Rows of Tables 2 and 3 | `python tools/make_tables.py` | printed as LaTeX |
-| Discretization convergence (Supplementary Table S1) | `python tools/convergence.py --check` | `metrics/convergence.csv` |
-| Multi-offset gather (Supplementary Table S2 and figure) | `python tools/gather.py` | `metrics/gather.csv`, `figures/Traces_gather.pdf` |
-| Two-medium equivalent-source propagation | `python plot_two_medium.py` | `figures/Traces_two_medium.pdf`, `metrics/trace_metrics_two_medium.csv` |
-| Coda of the heterogeneous fractures | `python tools/coda_metrics.py` | `metrics/coda_metrics.csv` |
-| Refined-grid FDTD reference | `python tools/refined_reference.py` | `metrics/refined_reference.csv`, `metrics/refined_reference_box_check.csv` |
-| Exact solution for the infinite planar fracture | see [analytic_reference/](analytic_reference/README.md) | `vertical_plannar_2cm_analy_trace.csv` |
-| Ray-aligned propagation test | `python validate_propagation.py Ez` (also `Ex`, `Ey`) | `propagation_*` in the working directory |
-| Reference plane from a truncated domain | `python compare_ref_planes.py TRUNCATED.out FULL.out` | per-component metric maps |
+| Discretization convergence (Supplementary Table S1) | `python tools/convergence.py --check` | `output/metrics/convergence.csv` |
+| Multi-offset gather (Supplementary Table S2 and figure) | `python tools/gather.py` | `output/metrics/gather.csv`, `output/figures/Traces_gather.pdf` |
+| Two-medium equivalent-source propagation | `python tools/plot_two_medium.py` | `output/figures/Traces_two_medium.pdf`, `output/metrics/trace_metrics_two_medium.csv` |
+| Coda of the heterogeneous fractures | `python tools/coda_metrics.py` | `output/metrics/coda_metrics.csv` |
+| Refined-grid FDTD reference | `python tools/refined_reference.py` | `output/metrics/refined_reference.csv`, `output/metrics/refined_reference_box_check.csv` |
+| Exact solution for the infinite planar fracture | see [examples/analytic/](examples/analytic/README.md) | `vertical_plannar_2cm_analy_trace.csv` |
+| Ray-aligned propagation test | `python tools/validate_propagation.py Ez` (also `Ex`, `Ey`) | `output/propagation/` |
+| Reference plane from a truncated domain | `python tools/compare_ref_planes.py TRUNCATED.out FULL.out` | `output/comparisons/` |
 | Plane recorded at 0.04 m against one recorded at 0.01 m | `python tools/compare_planes.py FINE.out COARSE.out --ref-step 4 --cand-step 1` | pass or fail |
-| Geometry panels of the trace figures | `python plot_surface.py` | `figures/*.pdf` |
-| Property maps of the heterogeneous fills | `python plot_heterogeneous_maps.py` | `figures/fig_*_ExpHeter_*.pdf` |
+| Geometry panels of the trace figures | `python tools/plot_surface.py` | `output/figures/*.pdf` |
+| Property maps of the heterogeneous fills | `python tools/plot_heterogeneous_maps.py` | `output/figures/fig_*_ExpHeter_*.pdf` |
 
-The propagation test needs the two models in `gprMax_models/For_ray-align_propagation_verification/`.
+The propagation test needs the two models in `examples/gprMax_models/For_ray-align_propagation_verification/`.
 The truncation and sampling comparisons use the models in
-`gprMax_models/For_referenced_plane/For_truncated_domain/` against
-`gprMax_models/For_referenced_plane/For_including_BH_only/`.
+`examples/gprMax_models/For_referenced_plane/For_truncated_domain/` against
+`examples/gprMax_models/For_referenced_plane/For_including_BH_only/`.
 
-To keep the large files elsewhere, set the locations through environment variables:
-`RAHPO_PLANE_DIR` (converted planes, default `planes/`), `RAHPO_TRACE_DIR` (RA-HPO traces,
-default `npz_data/`), `RAHPO_FDTD_DIR` (gprMax outputs, default next to each input),
-`RAHPO_FIGURE_DIR` and `RAHPO_METRICS_DIR`.
+To keep the large files elsewhere, set a directory through an environment variable before
+importing the package: `RAHPO_PLANE_DIR` (converted planes, default `output/planes/`),
+`RAHPO_TRACE_DIR` (RA-HPO traces, default `output/traces/`), `RAHPO_LOG_DIR`,
+`RAHPO_IMAGE_DIR`, `RAHPO_FIGURE_DIR`, `RAHPO_METRICS_DIR`, `RAHPO_PROPAGATION_DIR` and
+`RAHPO_COMPARISON_DIR`. `RAHPO_FDTD_DIR` is searched for the full-domain gprMax outputs;
+without it, gprMax writes each `.out` next to its input.
 
 ## Repository layout
 
 ```
-ra_hpo.py                      the solver
-convert_plane.py               conversion of a gprMax plane to the contiguous layout
-cases.py                       the cases of the paper and the file locations
-generate_geometry_h5.py        fracture geometry volumes for gprMax (planar, inclined, curved, corrugated)
-generate_heter_geometry_h5_and_materials.py
-                               stochastic heterogeneous fills (geometry, materials, fracture-plane map)
-validate_propagation.py        plane-to-plane test of the ray-aligned propagation
-compare_ref_planes.py          comparison of two planes recorded on different domains
-plot_traces.py                 trace comparisons and their metrics
-plot_two_medium.py             two-medium comparison
-plot_surface.py                geometry panels
-plot_heterogeneous_maps.py     property maps of the heterogeneous fills
-tools/                         case runner, metric and table scripts, example tools
-tests/                         tests of single solver components
-gprMax_models/                 gprMax input files of every case, and materials.txt
-analytic_reference/            exact solution for the infinite planar fracture
-configs/cases.json             the cases in machine-readable form
-examples/                      worked-example plane and reference trace
+rahpo/                         the solver, and nothing else
+  parameters.py                dataclasses that fix one run
+  fracture.py                  surface, fill, and mesh
+  fields.py                    reference-plane loading and ray propagation
+  scattering.py                physical-optics reaction integral
+  simulation.py                one scattered trace
+  paths.py                     output/ and its folders, created on import
+  cli.py                       the command line
+ra_hpo.py                      launcher only: calls rahpo.cli, kept for the paper's command
+output/                        gitignored products of a run (created on import)
+  traces/  logs/  images/  figures/  metrics/  planes/  propagation/  comparisons/
+examples/                      the experiments of the paper, not the solver
+  cases.py                     models, flags, and file locations of every case
+  cases.json                   the same catalogue in machine-readable form
+  traces.py                    loading traces and the comparison metrics
+  showcase.py                  draws docs/images/
+  example_plane.h5             cut of the paper's reference plane (shipped)
+  example_reference.npz        trace computed from that plane (shipped)
+  gprMax_models/               gprMax input files of every case, and materials.txt
+  analytic/                    exact solution for the infinite planar fracture
+docs/                          how to import the library, and the README pictures
+tools/                         geometry, conversion, figures, metrics, case runner
+tests/                         pytest; no large data
 ```
 
-The gprMax models are grouped by role:
+The gprMax models live in `examples/gprMax_models/` and are grouped by role:
 
 | Folder | Models |
 |---|---|
@@ -241,7 +266,7 @@ on the plane x = x1.
 
 **Fracture geometry volume** (`.h5`, gprMax `#geometry_objects_read`): int16 dataset `data` with
 attribute `dx_dy_dz`, fracture cells 0 and all other cells -1. Material 0 is defined in
-`gprMax_models/materials.txt`.
+`examples/gprMax_models/materials.txt`.
 
 **Heterogeneous fill**: `geom_<model>.h5` and `mat_<model>.txt` for gprMax, and `Syz_<model>.h5`,
 the fill on the fracture plane read by `ra_hpo.py --heterogeneous`.
@@ -269,7 +294,7 @@ n = 8, 16, 24 and 48 threads (RA-HPO also serially), each run with exclusive use
 
 - **FDTD.** The finite planar model with `#num_threads: n`, and its `#geometry_view` line and
   snapshot block removed, run as
-  `OMP_NUM_THREADS=n OMP_PLACES=cores OMP_PROC_BIND=close python -m gprMax gprMax_models/For_full-domain_verifications/3D8x10x10-shifted_frac-dist6-4h_planar_h0pt01.in`.
+  `OMP_NUM_THREADS=n OMP_PLACES=cores OMP_PROC_BIND=close python -m gprMax examples/gprMax_models/For_full-domain_verifications/3D8x10x10-shifted_frac-dist6-4h_planar_h0pt01.in`.
   One discarded warm-up, then two timed runs. The time is the one gprMax prints as
   `Simulation completed in`.
 - **RA-HPO.** `python ra_hpo.py --tx_plane_file PLANE.h5 --rx_plane_file PLANE.h5 --target_res 0.04 --fracture_type planar --cores n --no_viz --output_name timing`,
@@ -280,16 +305,30 @@ n = 8, 16, 24 and 48 threads (RA-HPO also serially), each run with exclusive use
   phases in the line `[PHASE]` of the log, which includes reading the converted plane but not
   interpreter start-up.
 - **Reference plane.** The truncated-domain model
-  `gprMax_models/For_referenced_plane/For_truncated_domain/3D_4x10x10-shifted_nofrac_planex3_h0pt01_rx0pt04.in`
-  at 48 threads under the FDTD settings above, then `python convert_plane.py` on its output.
+  `examples/gprMax_models/For_referenced_plane/For_truncated_domain/3D_4x10x10-shifted_nofrac_planex3_h0pt01_rx0pt04.in`
+  at 48 threads under the FDTD settings above, then `python tools/convert_plane.py` on its output.
 
 ## Data
 
-The data reported in the paper, namely the reference planes, the full-domain FDTD and RA-HPO
-traces, and the fracture geometry volumes, are not distributed. They can be regenerated from the
-scripts and gprMax input files of this repository, and `tools/run_case.py` gives the commands
-and configuration of each case. The worked example ships its two data files in `examples/`
-(19 MB), a cut of the paper's reference plane and the trace computed from it.
+Plots, PDF figures, NumPy archives, and HDF5 files produced by a run are not kept in git.
+Importing `rahpo` creates `output/` with `traces/`, `logs/`, `images/`, `figures/`,
+`metrics/`, `planes/`, `propagation/` and `comparisons/`. An editable install
+(`pip install -e .`) puts that tree next to the repository, because the package directory's
+parent is the repository. The same rule covers a `*.png`, `*.pdf`, `*.npz`, or `*.h5` left
+anywhere else in the tree. gprMax geometry volumes stay beside the `.in` files that read them.
+
+Three things are tracked because the repository cannot rebuild them from the code alone:
+
+- `examples/example_plane.h5` and `examples/example_reference.npz`, the quick-start inputs.
+  The plane is a cut of the paper's reference plane; regenerating it needs the gprMax run.
+- `docs/images/*.png`, the two pictures in this README. Redraw them with
+  `python examples/showcase.py`.
+- `examples/analytic/vertical_plannar_2cm_analy_trace.csv`, the exact trace for the infinite
+  planar fracture.
+
+The reference planes, full-domain FDTD traces, RA-HPO traces, and fracture geometry volumes
+reported in the paper are not distributed. They can be regenerated from the scripts and the
+gprMax input files, and `tools/run_case.py` gives the commands for each case.
 
 ## Citation
 

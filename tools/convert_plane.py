@@ -31,8 +31,8 @@ import numpy as np
 
 # The solver is imported for its loader, so that decimation is shared rather than
 # reimplemented here. Its command-line parsing sits under an "if __name__ == '__main__'" guard.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ra_hpo import load_gprmax_plane  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rahpo.fields import load_gprmax_plane  # noqa: E402
 
 # Bump this if the on-disk layout ever changes, so that an old file is rejected rather than
 # silently misread.

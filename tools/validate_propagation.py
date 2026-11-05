@@ -5,12 +5,14 @@ The field recorded by gprMax on a reference plane (x = x1) is propagated along r
 target plane (x = x2) and compared with the field simulated directly by gprMax on x2.
 
 The default inputs are the outputs of the two models in
-gprMax_models/For_ray-align_propagation_verification/: the plane at x = 3.5 m is propagated to
+examples/gprMax_models/For_ray-align_propagation_verification/: the plane at x = 3.5 m is propagated to
 x = 6.5 m, where the second model records the field directly.
 
 Usage:
-    python validate_propagation.py Ez
-    python validate_propagation.py Ex --plane PLANE.out --target TARGET.out
+    python tools/validate_propagation.py Ez
+    python tools/validate_propagation.py Ex --plane PLANE.out --target TARGET.out
+
+Products are written to output/propagation/.
 
 Metrics (per pixel (i, j) of the decimated plane; d = FDTD, p = propagated field; sums and
 means run over the common time window of N samples):
@@ -26,17 +28,25 @@ Both planes are decimated at load: only the receivers kept by (y_step, z_step) a
 the coordinate axes are built from the Position attributes of the first row and column.
 """
 import argparse
+import sys
+from pathlib import Path
+
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+
+_REPO = Path(__file__).resolve().parents[1]
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+from rahpo.paths import PROPAGATION  # noqa: E402
 from matplotlib.animation import FuncAnimation, PillowWriter
 from scipy.interpolate import interp1d
 import matplotlib.ticker as mticker
 
 # ========== Test configuration (models in For_ray-align_propagation_verification/) ==========
-_MODELS = "gprMax_models/For_ray-align_propagation_verification/"
-PLANE_FILE = _MODELS + "3D_8x10x10-shifted_nofrac_tx5pt0_planex3_h0pt01.out"   # recorded plane, x = 3.5 m
-TARGET_FILE = _MODELS + "3D_8x10x10-shifted_nofrac_tx5pt0_planex6_h0pt01.out"  # simulated plane at x2
+_MODELS = _REPO / "examples" / "gprMax_models" / "For_ray-align_propagation_verification"
+PLANE_FILE = str(_MODELS / "3D_8x10x10-shifted_nofrac_tx5pt0_planex3_h0pt01.out")   # recorded plane, x = 3.5 m
+TARGET_FILE = str(_MODELS / "3D_8x10x10-shifted_nofrac_tx5pt0_planex6_h0pt01.out")  # simulated plane at x2
 x2 = 6.5  # target plane x [m]
 x_tol = 1e-3  # meters tolerance on the plane position
 src_pos = (0.5, 5.0, 5.0)  # (x_s, y_s, z_s) in meters
@@ -605,7 +615,7 @@ if __name__ == "__main__":
     for k, v in propagated.items():
         out[f"{k}_x2"] = v.astype(np.float32)
 
-    prop_npz = f"propagation_{COMP}_field_x2.npz"
+    prop_npz = PROPAGATION / f"propagation_{COMP}_field_x2.npz"
     np.savez_compressed(prop_npz, **out)
     print(f"Saved propagated fields and time axis to {prop_npz}")
 
@@ -665,7 +675,7 @@ if __name__ == "__main__":
     ax1[2].set_xlabel("y [m]"); ax1[2].set_ylabel("z [m]")
     fig1.colorbar(im2, ax=ax1[2], shrink=0.6)
 
-    out_png = f"propagation_{COMP}_metric_maps.png"
+    out_png = PROPAGATION / f"propagation_{COMP}_metric_maps.png"
     fig1.savefig(out_png, dpi=200, bbox_inches='tight')
     plt.close(fig1)
     print(f"Saved comparison metrics figure to {out_png}")
@@ -687,11 +697,12 @@ if __name__ == "__main__":
         plt.legend()
         plt.tight_layout()
         tag = f"x{x2:g}_y{y_pick:g}z{z_pick:g}".replace('.', 'p')
-        plt.savefig(f"propagation_{COMP}_trace_{tag}.png", dpi=300)
+        plt.savefig(PROPAGATION / f"propagation_{COMP}_trace_{tag}.png", dpi=300)
         plt.close()
 
+    metrics_npz = PROPAGATION / f"propagation_{COMP}_metrics.npz"
     np.savez_compressed(
-        f"propagation_{COMP}_metrics.npz",
+        metrics_npz,
         yy=yy_ds, zz=zz_ds,
         window_s=np.array(metrics['window_s']),
         NRMSE_map=metrics['NRMSE_map'].astype(np.float32),
@@ -701,4 +712,4 @@ if __name__ == "__main__":
         relL2_global=np.array(metrics['relL2']),
         NRMSE_rms_map=metrics['NRMSE_rms_map'].astype(np.float32),
     )
-    print(f"Saved quantitative metrics to propagation_{COMP}_metrics.npz")
+    print(f"Saved quantitative metrics to {metrics_npz}")

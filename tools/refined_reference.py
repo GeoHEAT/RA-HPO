@@ -15,8 +15,8 @@ gprMax gives a Hertzian dipole the length of one cell, so its moment, and every 
 radiates, halves with the cell. The 0.005 m traces are therefore multiplied by
 H_COARSE / H_FINE = 2 to describe the same source.
 
-Models: gprMax_models/For_refined_reference/ (the 0.01 m box run and the 0.005 m fracture and
-direct-wave runs) and the finite planar case of cases.py. Writes metrics/refined_reference.csv.
+Models: examples/gprMax_models/For_refined_reference/ (the 0.01 m box run and the 0.005 m fracture and
+direct-wave runs) and the finite planar case of cases.py. Writes output/metrics/refined_reference.csv.
 
 Usage:  python tools/refined_reference.py [--out-csv FILE]
 """
@@ -33,7 +33,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from accuracy_metrics import misfits  # noqa: E402
-from cases import (BY_KEY, METRICS_DIR, REFINED, REFINED_BOX, REFINED_DIRECT,  # noqa: E402
+from examples.cases import (BY_KEY, METRICS_DIR, REFINED, REFINED_BOX, REFINED_DIRECT,  # noqa: E402
                    TIME_RANGE, fdtd_output)
 from plot_traces import (compare_traces, load_gprmax_ez, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)
