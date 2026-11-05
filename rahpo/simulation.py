@@ -33,7 +33,8 @@ from rahpo.fields import (
     gamma_of_omega,
     load_gprmax_plane,
 )
-from rahpo.fracture import get_fracture_mesh, get_specular_point_numerical
+from rahpo.fracture import (completeness_horizon, drop_elements_before_plane, get_fracture_mesh,
+                            get_specular_point_numerical)
 from rahpo.parameters import GeometryParams, MediaParams, RuntimeParams, SourceParams, WorkerParams
 from rahpo.paths import IMAGES
 from rahpo.scattering import element_contribution
@@ -128,6 +129,14 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
 
     xs, ys, zs = srcpar.src_pos
     xr, yr, zr = srcpar.rec_pos
+    DZ = run.tool_shift
+    if DZ != 0.0:
+        if not run.no_viz:
+            raise ValueError("tool_shift needs no_viz: the geometry plot would show the unshifted tool")
+        zs += DZ
+        zr += DZ
+        logging.info(f"[TOOL SHIFT] source, receiver and plane moved by {DZ:+.4f} m along the "
+                     f"borehole axis: source z = {zs:.4f} m, receiver z = {zr:.4f} m")
 
     logging.info("Generating fracture mesh...")
     elempos = get_fracture_mesh(geom, media)
@@ -136,7 +145,7 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
                  f"(total {np.sum(elempos[6, :]):.6f} m^2).")
 
     logging.info("Finding specular point...")
-    P_spec, idx_spec = get_specular_point_numerical(srcpar.src_pos, srcpar.rec_pos, elempos)
+    P_spec, idx_spec = get_specular_point_numerical((xs, ys, zs), (xr, yr, zr), elempos)
     logging.info(f"Specular Point found at: {P_spec}")
     _p_mesh = time.perf_counter()   # end phase: mesh + specular
 
@@ -156,6 +165,22 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
 
     if not np.isclose(dt, r_dt):
         raise ValueError("Time steps of forward and reciprocal planes must match.")
+
+    if DZ != 0.0:
+        # The plane moves with the tool. New arrays, so a shared zz is shifted only once.
+        zz = zz + DZ
+        r_zz = r_zz + DZ
+
+    # Elements at or in front of the reference plane are dropped; their positions enter the
+    # completeness horizon below.
+    x_guard = max(x1, r_x1)
+    elempos, front_pos = drop_elements_before_plane(elempos, x_guard)
+    n_front = front_pos.shape[1]
+    numelem = elempos.shape[1]
+    if numelem == 0:
+        raise ValueError(f"no fracture element lies behind the reference plane x = {x_guard:.3f} m")
+    logging.info(f"[GUARD] {n_front} elements at or in front of the reference plane "
+                 f"(x <= {x_guard:.3f} m) dropped")
 
     logging.info(f"Loaded TX plane at x1={x1:.3f} m: comps={list(fields_t.keys())}, dt={dt*1e9:.3f} ns, Nt={Nt}, ny={yy.size}, nz={zz.size}")
     logging.info(f"Loaded RX plane at r_x1={r_x1:.3f} m: comps={list(reciprocal_fields_t.keys())}, dt={r_dt*1e9:.3f} ns, Nt={r_Nt}, ny={r_yy.size}, nz={r_zz.size}")
@@ -299,6 +324,15 @@ def run_simulation(media: MediaParams, srcpar: SourceParams, geom: GeometryParam
         f"[DROPPED] {n_dropped} of {numelem} elements ({100.0 * n_dropped / numelem:.3f}%) "
         f"contributed exactly zero (degenerate ray geometry, or ray outside the recorded plane)"
     )
+
+    lost = np.concatenate([front_pos, elempos[0:3, ~results_arr.any(axis=1)]], axis=1)
+    t_c = completeness_horizon(lost, (xs, ys, zs), (xr, yr, zr), v)
+    if t_c is None:
+        logging.info("[HORIZON] completeness horizon t_c: none, every element contributes")
+    else:
+        logging.info(f"[HORIZON] completeness horizon t_c = {t_c * 1e9:.1f} ns on the trace time axis: "
+                     f"earliest two-way time of the {lost.shape[1]} non-contributing elements at "
+                     f"v = {v:.6g} m/s, plus the source delay {np.sqrt(2.0) / FC * 1e9:.1f} ns")
 
     # Optional edge taper, skipped entirely at the default edge_taper = 0.0
     if run.edge_taper > 0.0:

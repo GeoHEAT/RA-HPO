@@ -1,0 +1,1 @@
+--shape planar-dip --dip 30 --x-ref 4.83 --z-ref 3.0 --cells 4 --window 1.04 7.28 1.0 9.0 --xmax 7.3 --dims 800 800 1000 --origin 0 1 0 --out-dir input_h5_geom --name app_dip30_brine4c.h5

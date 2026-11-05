@@ -16,6 +16,7 @@ outputs instead of the model directories.
 from __future__ import annotations
 
 import os
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,8 @@ FDTD_DIR = os.environ.get("RAHPO_FDTD_DIR")
 FIGURE_DIR = FIGURES
 METRICS_DIR = METRICS
 
+# Exact trace of the nominal 2 cm layer of the infinite case (its two-cell FDTD slab acts as 3 cm)
+ANALYTIC_NOMINAL = "vertical_plannar_2cm_analy_trace.csv"
 TIME_RANGE = (100.0, 200.0)   # evaluation window of every comparison [ns]
 PLANE_RES = 0.04              # receiver spacing at which the solver reads the planes [m]
 
@@ -115,7 +118,7 @@ CASES: list[Case] = [
          ("--planethick", "0.02", "--fracture_extent", "-3", "13", "-3", "13",
           "--edge_taper", "3"),
          fdtd=f"{_F}/3D8x8x8-shifted_nobh_frac-dist6-2h_h0pt010", direct=None,
-         figure="Traces_infinite_planar", analytic="vertical_plannar_2cm_analy_trace.csv",
+         figure="Traces_infinite_planar", analytic="infinite_planar_3cm_analy_trace.csv",
          normalized=True),
     Case("finite_planar", "Finite planar", "accuracy", PLANE_BH, ("--fracture_type", "planar"),
          fdtd=FDTD_PLANAR, direct=DIRECT, figure="Traces_finite_planar"),
@@ -153,7 +156,9 @@ CASES += [Case(f"gather_z{str(z).replace('.', 'pt')}", f"Gather, offset {z - Z_S
           for z in GATHER_Z]
 # Domain truncation: the finite planar case from a plane computed on a 4.0 m domain
 CASES += [Case("truncated_domain", "Finite planar, plane from a 4.0 m domain", "truncation",
-               PLANE_TRUNCATED, ("--fracture_type", "planar"))]
+               PLANE_TRUNCATED, ("--fracture_type", "planar")),
+          Case("truncated_reference", "Finite planar, plane from the 8.0 m domain", "truncation",
+               PLANE_BH, ("--fracture_type", "planar"))]
 # Incidence diagnostic: one direction per element against one per frequency (projected areas)
 CASES += [Case("incidence_band", "Piecewise concave, band-averaged incidence", "incidence",
                PLANE_BH, ("--fracture_type", "piecewise_yz", "--element_area", "projected")),
@@ -175,6 +180,83 @@ for shape, sflags in CONVERGENCE_SHAPES.items():
                    "convergence", PLANE_BH, sflags + ("--element_area", "projected"),
                    raw_plane=True, target_res=r)
               for tag, r in PLANE_SPACINGS]
+
+# Refined reference: the finite planar fracture with the thickness of the 0.005 m FDTD slab
+CASES += [Case("refined_planar", "Finite planar, thickness of the 0.005 m reference", "refined", PLANE_BH,
+               ("--fracture_type", "planar", "--planethick", "0.045"), fdtd=REFINED, direct=REFINED_DIRECT)]
+
+# Slab thickness. Without material averaging gprMax 3.1.7 builds a slab of N cells as N + 1 cells
+# for the field tangential to it (tools/voxel_thickness.py), so RA-HPO is given the thickness the
+# FDTD reference has: 0.03 m for the two-cell infinite case, 0.0498 m for the 8 degree slab and
+# 0.05 m for the other four-cell slabs, and 0.045 m for the eight cells of 0.005 m. The plane-spacing, domain and incidence tests compare two
+# RA-HPO traces with each other and keep the default 0.04 m.
+BUILT_THICKNESS = {"infinite_planar": "0.03", "inclined_8deg": "0.0498", "refined_planar": "0.045"}
+_NOMINAL = {"truncation", "incidence"}
+
+
+def _with_thickness(flags: tuple, d: str) -> tuple:
+    f = list(flags)
+    if "--planethick" in f:
+        f[f.index("--planethick") + 1] = d
+    else:
+        f += ["--planethick", d]
+    return tuple(f)
+
+
+CASES = [c if c.group in _NOMINAL or c.key.startswith("convergence_res_") else
+         dataclasses.replace(c, flags=_with_thickness(c.flags, BUILT_THICKNESS.get(c.key, "0.05")))
+         for c in CASES]
+
+
+def ztag(z: float) -> str:
+    """Receiver height as it appears in case keys: 4.5 -> 'z4pt5'."""
+    return f"z{str(z).replace('.', 'pt')}"
+
+
+# Application. Element size 0.02 m throughout, a size that changes the finite planar trace by
+# chi = 0.021 % against 0.005 m elements (convergence group).
+_APP = "For_application"
+APP_PLANES = {"bh": PLANE_BH, "nobh": PLANE_NOBH}
+BRINE = ("--fluid_epsr", "43", "--fluid_sigma", "10")
+
+# Thin layers: the exact infinite layers of examples/analytic/thin_layers.py, meshed as the
+# infinite planar case (16 x 16 m, 3 m edge taper) on the borehole-free plane.
+THIN_LAYERS = {"brine10_0p1mm": ("0.0001", "43", "10"), "brine10_1mm": ("0.001", "43", "10"),
+               "brine25_0p4mm": ("0.0004", "43", "25"), "fresh_1mm": ("0.001", "80", "0.01"),
+               "water_5mm": ("0.005", "80", "0.5")}
+CASES += [Case(f"thin_{name}", f"Thin layer {name}", "thin_layers", PLANE_NOBH,
+               ("--fracture_type", "planar", "--fracture_extent", "-3", "13", "-3", "13", "--edge_taper", "3",
+                "--ellength", "0.02", "--planethick", d, "--fluid_epsr", er, "--fluid_sigma", sg),
+               analytic=f"thin_layers/{name}.csv")
+          for name, (d, er, sg) in THIN_LAYERS.items()]
+
+# Dipping fractures in the gather: four-cell brine slabs dipping by 20 and 30 degrees, each a
+# full-domain model with the sixteen gather receivers, solved on the borehole plane and, for the
+# calibrated dipole, on the borehole-free plane. RA-HPO is given the thickness gprMax 3.1.7
+# builds (tools/voxel_thickness.py): 0.0487 and 0.0478 m.
+DIPPING = {
+    30: (f"{_APP}/app_dip30_brine4c",
+         ("--fracture_type", "planar-dip", "--dip", "30", "--fracture_x", "4.83", "--fracture_z", "3.0",
+          "--fracture_extent", "1", "9", "1.04", "7.28", "--planethick", "0.0478")),
+    20: (f"{_APP}/app_dip20_brine4c",
+         ("--fracture_type", "planar-dip", "--dip", "20", "--fracture_x", "5.67", "--fracture_z", "3.62",
+          "--fracture_extent", "1", "9", "1.00", "8.08", "--planethick", "0.0487")),
+}
+for _dip, (_model, _flags) in DIPPING.items():
+    CASES += [Case(f"dip{_dip}_{_p}_{ztag(z)}", f"Dipping {_dip} deg, {_p} plane, offset {z - Z_SOURCE:+.1f} m",
+                   "dipping", _plane, _flags + BRINE + ("--ellength", "0.02", "--rec_pos", "0.5", "5.0", f"{z:g}"),
+                   fdtd=_model, direct=GATHER_NOFRAC)
+              for _p, _plane in APP_PLANES.items() for z in GATHER_Z]
+
+# Calibration pairs of the dipole: a fracture parallel to the well with the fill of the dipping
+# ones, at the source distance of the specular point of the 30 degree slab (5.0 m) and of the
+# 20 degree slab (5.5 m), receiver at -1.0 m offset.
+CALIBRATION = {30: 5.5, 20: 6.0}
+CASES += [Case(f"dipcal{_dip}_{_p}", f"Calibration pair of the {_dip} deg slab, {_p} plane", "calibration",
+               _plane, ("--fracture_type", "planar", "--fracture_x", f"{x:g}", "--fracture_extent", "1", "9",
+                        "1", "9", "--planethick", "0.04") + BRINE
+               + ("--ellength", "0.02", "--rec_pos", "0.5", "5.0", "4.5"))
+          for _dip, x in CALIBRATION.items() for _p, _plane in APP_PLANES.items()]
 
 BY_KEY = {c.key: c for c in CASES}
 if len(BY_KEY) != len(CASES):

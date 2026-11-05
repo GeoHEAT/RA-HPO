@@ -22,13 +22,29 @@ Shapes (file names as the models in examples/gprMax_models/ read them):
     sinusoidal_3d   biaxial corrugation x = 6.5 + A sin(k_y y) sin(k_z z), periods 4 and 16/3 m
                     3d_domain8x8x8_frac_sinusoidal_3d-<n>h_A<tag>-ky1div2-kz2div3_dx010.h5
 
-<n> is the aperture in cells. The surfaces are those of ra_hpo.fracture_surface_function.
+<n> is the aperture in cells. The surfaces are those of rahpo.fracture.fracture_surface_function.
+
+The planar-dip shape is set in model coordinates rather than on the fixed 8 m cube:
+
+    planar-dip      plane x = x_ref + (z - z_ref) tan(dip), cut to a window
+                    file name given with --name
+
+It takes the volume size in cells (--dims) and the origin at which the model places it
+(--origin, the first three values of its #geometry_objects_read line), so that the window and
+the plane are given in the same coordinates as the solver's planar-dip fracture (--dip,
+--fracture_x, --fracture_z). A positive dip moves the plane away from the borehole as z
+increases. The cell rule is the same as above. In gprMax 3.1.7 a slab of N cells built this way
+acts on the field tangential to it as about N + 1 cells (see tools/voxel_thickness.py), so a
+one-cell sheet acts as 0.02 m.
 
 Usage
 -----
-    python generate_geometry_h5.py --shape planar
-    python generate_geometry_h5.py --shape sinusoidal_3d --amplitude 0.25
+    python tools/generate_geometry_h5.py --shape planar
+    python tools/generate_geometry_h5.py --shape sinusoidal_3d --amplitude 0.25
     python tools/generate_geometry_h5.py --all --out-dir examples/gprMax_models/For_full-domain_verifications/input_h5_geom
+    python tools/generate_geometry_h5.py --shape planar-dip --dip 30 --x-ref 4.83 --z-ref 3.0 \\
+        --cells 4 --window 1.04 7.28 1.0 9.0 --xmax 7.3 --dims 800 800 1000 --origin 0 1 0 \\
+        --name app_dip30_brine4c.h5
 
 --all writes every volume read by the models of this repository. One volume needs about 6 GB
 of memory.
@@ -111,6 +127,38 @@ def distance_to_surface(shape: str, amplitude: float, n: int = N, h: float = H) 
     raise ValueError(f"unknown shape: {shape}")
 
 
+def build_planar_dip(dip: float, x_ref: float, z_ref: float, cells: int,
+                     window: tuple[float, float, float, float], xmax: float | None = None,
+                     dims: tuple[int, int, int] = (N, N, N),
+                     origin: tuple[float, float, float] = (0.0, 1.0, 1.0),
+                     h: float = H) -> np.ndarray:
+    """Volume of the plane x = x_ref + (z - z_ref) tan(dip), in model coordinates.
+
+    A cell is fracture when its center lies within half the aperture (cells * h / 2) of the
+    plane, measured along the normal, and inside the window (zmin, zmax, ymin, ymax), and,
+    if xmax is given, at x <= xmax. The plane does not depend on y, so the test runs on the
+    (x, z) section and is copied to every y inside the window.
+    """
+    nx, ny, nz = dims
+    ox, oy, oz = origin
+    zmin, zmax, ymin, ymax = window
+    b = np.radians(dip)
+    x = ox + (np.arange(nx) + 0.5) * h
+    y = oy + (np.arange(ny) + 0.5) * h
+    z = oz + (np.arange(nz) + 0.5) * h
+    dist = np.abs((x[:, None] - x_ref) * np.cos(b) - (z[None, :] - z_ref) * np.sin(b))
+    section = (dist <= cells * h / 2) & (z[None, :] >= zmin) & (z[None, :] <= zmax)
+    if xmax is not None:
+        section &= x[:, None] <= xmax
+    data = np.full((nx, ny, nz), BACKGROUND_ID, dtype=np.int16)
+    rows = np.nonzero((y >= ymin) & (y <= ymax))[0]
+    if rows.size:
+        # one (x, 1, z) section broadcast over the y rows, so no full-size temporary is made
+        data[:, rows[0]:rows[-1] + 1, :] = np.where(section[:, None, :], np.int16(FRACTURE_ID),
+                                                    np.int16(BACKGROUND_ID))
+    return data
+
+
 def build_volume(shape: str, cells: int, amplitude: float = 0.0, n: int = N,
                  h: float = H) -> np.ndarray:
     dist = distance_to_surface(shape, amplitude, n, h)
@@ -130,7 +178,8 @@ def write_volume(path: Path, data: np.ndarray, h: float = H) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--shape", choices=["planar", "planar-tilted", "piecewise_yz", "sinusoidal_3d"])
+    ap.add_argument("--shape", choices=["planar", "planar-tilted", "piecewise_yz", "sinusoidal_3d",
+                                        "planar-dip"])
     ap.add_argument("--amplitude", type=float, default=0.25,
                     help="corrugation amplitude A in metres for sinusoidal_3d (default 0.25)")
     ap.add_argument("--cells", type=int, default=4,
@@ -138,10 +187,31 @@ def main() -> int:
     ap.add_argument("--all", action="store_true",
                     help="write every volume read by the models of this repository")
     ap.add_argument("--out-dir", default=".", help="output directory (default: current)")
+    g = ap.add_argument_group("planar-dip (model coordinates, metres)")
+    g.add_argument("--dip", type=float, default=0.0, help="inclination from the borehole axis, degrees")
+    g.add_argument("--x-ref", type=float, default=X_BASE, help="x of the plane at height --z-ref")
+    g.add_argument("--z-ref", type=float, default=5.0, help="height at which the plane passes --x-ref")
+    g.add_argument("--window", type=float, nargs=4, metavar=("ZMIN", "ZMAX", "YMIN", "YMAX"),
+                   help="extent of the fracture (cell centers)")
+    g.add_argument("--xmax", type=float, default=None, help="optional cut: fracture cells at x <= XMAX only")
+    g.add_argument("--dims", type=int, nargs=3, default=(N, N, N), metavar=("NX", "NY", "NZ"),
+                   help="volume size in cells (default 800 800 800)")
+    g.add_argument("--origin", type=float, nargs=3, default=(0.0, 1.0, 1.0), metavar=("OX", "OY", "OZ"),
+                   help="where the model places the volume (default 0 1 1)")
+    g.add_argument("--name", help="output file name")
     a = ap.parse_args()
 
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    if a.shape == "planar-dip":
+        if a.window is None or a.name is None:
+            ap.error("planar-dip needs --window and --name")
+        path = out / a.name
+        if path.exists():
+            ap.error(f"{path} exists; refusing to overwrite")
+        write_volume(path, build_planar_dip(a.dip, a.x_ref, a.z_ref, a.cells, tuple(a.window),
+                                            a.xmax, tuple(a.dims), tuple(a.origin)))
+        return 0
     if a.all:
         jobs = [("planar", 4, 0.0), ("planar", 2, 0.0), ("planar-tilted", 4, 0.0),
                 ("piecewise_yz", 4, 0.0)] + [("sinusoidal_3d", 4, A) for A in AMPLITUDES]

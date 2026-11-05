@@ -116,7 +116,9 @@ imported, which is the first thing `python ra_hpo.py` does.
 |---|---|---|
 | `--target_res` | as recorded | Receiver spacing (m) at which to read the plane. The 0.01 m planes of the paper are read at 0.04 m |
 | `--plane_epsr` | 9.0 | Permittivity of the host in which the plane was recorded, for re-radiation into a different host |
-| `--fracture_type` | `planar` | `planar`, `planar-tilted` (8 degrees), `piecewise_yz` (concave bowl with a flat center) or `sinusoidal_3d` (biaxial corrugation) |
+| `--fracture_type` | `planar` | `planar`, `planar-tilted` (8 degrees), `planar-dip` (a plane at any dip), `piecewise_yz` (concave bowl with a flat center) or `sinusoidal_3d` (biaxial corrugation) |
+| `--dip` | 0 | Dip (degrees) of `planar-dip` from the borehole axis, positive when the plane moves away from the borehole as z increases |
+| `--fracture_x`, `--fracture_z` | 6.5, 5.0 | x (m) of the plane, and for `planar-dip` the height (m) at which it has that x |
 | `--amplitude` | 0.25 | Corrugation amplitude A (m) of `sinusoidal_3d` |
 | `--planethick` | 0.04 | Fracture aperture (m) |
 | `--fracture_extent` | 1 9 1 9 | Meshed extent YMIN YMAX ZMIN ZMAX (m) |
@@ -126,6 +128,7 @@ imported, which is the first thing `python ra_hpo.py` does.
 | `--fluid_epsr`, `--fluid_sigma` | 80.0, 0.5 | Permittivity and conductivity (S/m) of the fracture fill |
 | `--heterogeneous` | off | Read a heterogeneous fill from `--h5_geom`, `--syz_geom` and `--mat_file` |
 | `--src_pos`, `--rec_pos` | 0.5 5.0 5.5, 0.5 5.0 4.5 | Source and receiver positions (m) |
+| `--tool_shift` | 0 | Move the source, the receiver and the reference plane together along the borehole axis (m), exact for an axially uniform borehole and host; needs `--no_viz` |
 | `--cores` | 24 | Worker processes for the element integration |
 | `--incidence` | `band` | One incidence direction per element from the band-averaged Poynting vector (`band`), or a diagnostic that recomputes it per frequency (`perfreq`) |
 | `--no_viz` | off | Skip the diagnostic plot of the fracture geometry |
@@ -138,7 +141,10 @@ rock properties and the source wavelet, are set in the dataclasses in `rahpo/par
 the source may move only along the borehole axis. Along the axis, any transmitter and receiver
 pair is served by the same plane as long as the ray from each to every fracture element crosses
 the plane inside its recorded aperture. An element whose ray misses the plane contributes
-nothing, and the log reports the number of such elements in the line `[DROPPED]`.
+nothing, and the log reports the number of such elements in the line `[DROPPED]`. Elements at
+or in front of the plane are removed before the integration (`[GUARD]`). The line `[HORIZON]`
+gives the completeness horizon t_c, the earliest two-way time at which any of these elements
+would arrive, so the trace is complete up to t_c (`none` when every element contributes).
 
 **Converting a plane.** A gprMax `.out` file stores one dataset per receiver and component.
 Converting it once makes each component one contiguous array, which the solver reads much
@@ -165,11 +171,20 @@ python tools/generate_heter_geometry_h5_and_materials.py --out-dir examples/gprM
 **2 to 4. gprMax, plane conversion and RA-HPO, per case.**
 
 ```bash
-python tools/run_case.py --list                    # the 59 cases and their groups
+python tools/run_case.py --list                    # the 134 cases and their groups
 python tools/run_case.py finite_planar             # the commands of one case
 python tools/run_case.py finite_planar --run       # run its RA-HPO command
 python tools/run_case.py --commands --group roughness
 ```
+
+**Slab thickness.** The full-domain models fill slabs of whole cells, and without material
+averaging gprMax 3.1.7 builds a slab of N cells as N + 1 cells for the field tangential to it
+(`tools/voxel_thickness.py`, checked on one voxel by `tools/slice_test.py`). Every case therefore
+gives RA-HPO the thickness the FDTD reference has: 0.03 m for the two-cell infinite case, 0.0498
+m for the 8 degree slab, 0.045 m for the eight cells of the 0.005 m reference, 0.0487 and 0.0478
+m for the slabs dipping by 20 and 30 degrees, and 0.05 m for the other four-cell slabs. The
+plane-spacing, domain-truncation and incidence tests compare two RA-HPO traces with each other
+and keep the default 0.04 m.
 
 For each case, `run_case.py` prints the gprMax runs of its reference plane, of its full-domain
 reference and of the direct wave subtracted from that reference, then the conversion of the
@@ -194,12 +209,28 @@ of a comparison cover the same band.
 | Two-medium equivalent-source propagation | `python tools/plot_two_medium.py` | `output/figures/Traces_two_medium.pdf`, `output/metrics/trace_metrics_two_medium.csv` |
 | Coda of the heterogeneous fractures | `python tools/coda_metrics.py` | `output/metrics/coda_metrics.csv` |
 | Refined-grid FDTD reference | `python tools/refined_reference.py` | `output/metrics/refined_reference.csv`, `output/metrics/refined_reference_box_check.csv` |
-| Exact solution for the infinite planar fracture | see [examples/analytic/](examples/analytic/README.md) | `vertical_plannar_2cm_analy_trace.csv` |
+| Exact solution for the infinite planar fracture, for the nominal 2 cm layer and the 3 cm layer its slab acts as | see [examples/analytic/](examples/analytic/README.md); `python examples/analytic/thin_layers.py --infinite` | `vertical_plannar_2cm_analy_trace.csv`, `infinite_planar_3cm_analy_trace.csv` |
+| Exact solutions for the thin layers | `python examples/analytic/thin_layers.py --write` | `examples/analytic/thin_layers/*.csv` |
+| Thin layers and dipping fractures, RA-HPO and the calibrated dipole against the references | `python tools/dip_study.py` | `output/metrics/thin_layers.csv`, `output/metrics/dipping.csv` |
+| Gather accuracy against offset, with the dipping fractures (Figure 8) | `python tools/gather_metrics.py --dipping` | `output/figures/Gather_metrics.pdf` |
+| Constant-offset profile: valid positions, cases, and the reduction of its traces | `python tools/profile_scene.py --audit`, `--cases cases_profile.tsv`, `--sum --out output/metrics` | `cases_profile.tsv`, `output/metrics/profile_peaks.csv` |
+| Profile figure: scene, RA-HPO radargram, difference from the calibrated dipole (Figure 9) | `python tools/profile_figure.py` | `output/figures/Profile_dipping.pdf` |
+| Thickness of the FDTD slabs as gprMax 3.1.7 builds them (Supplementary Table S12) | `python tools/voxel_thickness.py` | printed |
+| One-voxel slice test of that rule | `python tools/slice_test.py --write DIR`, gprMax on its three models, then `--analyze DIR` | printed |
+| Angular transfer of the water-filled borehole (cylinder solution) | `python tools/borehole_transfer.py` | printed |
 | Ray-aligned propagation test | `python tools/validate_propagation.py Ez` (also `Ex`, `Ey`) | `output/propagation/` |
 | Reference plane from a truncated domain | `python tools/compare_ref_planes.py TRUNCATED.out FULL.out` | `output/comparisons/` |
 | Plane recorded at 0.04 m against one recorded at 0.01 m | `python tools/compare_planes.py FINE.out COARSE.out --ref-step 4 --cand-step 1` | pass or fail |
 | Geometry panels of the trace figures | `python tools/plot_surface.py` | `output/figures/*.pdf` |
 | Property maps of the heterogeneous fills | `python tools/plot_heterogeneous_maps.py` | `output/figures/fig_*_ExpHeter_*.pdf` |
+
+`dip_study.py` also reads the `[HORIZON]` line of each solver log in `output/logs/`, and lists
+the receivers whose completeness horizon falls inside the evaluation window apart from those
+with full plane coverage. The profile cases are not in the catalogue, since they have no
+full-domain reference. `python tools/profile_scene.py --cases cases_profile.tsv` writes one line
+per case (name, plane, flags), where the plane `bh` is the converted borehole plane and `nobh`
+the borehole-free one. Each line runs as
+`python ra_hpo.py --tx_plane_file PLANE --rx_plane_file PLANE --target_res 0.04 --no_viz --output_name NAME FLAGS`.
 
 The propagation test needs the two models in `examples/gprMax_models/For_ray-align_propagation_verification/`.
 The truncation and sampling comparisons use the models in
@@ -235,7 +266,7 @@ examples/                      the experiments of the paper, not the solver
   example_plane.h5             cut of the paper's reference plane (shipped)
   example_reference.npz        trace computed from that plane (shipped)
   gprMax_models/               gprMax input files of every case, and materials.txt
-  analytic/                    exact solution for the infinite planar fracture
+  analytic/                    exact solutions for the infinite planar fracture and thin layers
 docs/                          how to import the library, and the README pictures
 tools/                         geometry, conversion, figures, metrics, case runner
 tests/                         pytest; no large data
@@ -250,6 +281,7 @@ The gprMax models live in `examples/gprMax_models/` and are grouped by role:
 | `For_gather/` | Sixteen receivers along the borehole, with and without the fracture |
 | `For_refined_reference/` | The finite planar fracture and its direct wave at 0.005 m, and the same fracture written as a box at 0.01 m |
 | `For_ray-align_propagation_verification/` | Planes at x = 3.5 m and x = 6.5 m for the propagation test |
+| `For_application/` | The brine slabs dipping by 20 and 30 degrees with the sixteen gather receivers; `geom_args_*.txt` holds the arguments of `tools/generate_geometry_h5.py` that write their volumes |
 
 ## File formats
 
@@ -323,8 +355,10 @@ Three things are tracked because the repository cannot rebuild them from the cod
   The plane is a cut of the paper's reference plane; regenerating it needs the gprMax run.
 - `docs/images/*.png`, the two pictures in this README. Redraw them with
   `python examples/showcase.py`.
-- `examples/analytic/vertical_plannar_2cm_analy_trace.csv`, the exact trace for the infinite
-  planar fracture.
+- `examples/analytic/vertical_plannar_2cm_analy_trace.csv` and
+  `examples/analytic/infinite_planar_3cm_analy_trace.csv`, the exact traces for the infinite
+  planar fracture (2 cm and 3 cm layer), and `examples/analytic/thin_layers/*.csv`, those of the
+  thin layers. `python examples/analytic/thin_layers.py --check` recomputes the first two.
 
 The reference planes, full-domain FDTD traces, RA-HPO traces, and fracture geometry volumes
 reported in the paper are not distributed. They can be regenerated from the scripts and the

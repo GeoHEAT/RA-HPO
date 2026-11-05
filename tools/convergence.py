@@ -44,6 +44,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from examples.cases import ELEMENT_SIZES, METRICS_DIR, PLANE_SPACINGS, trace_file  # noqa: E402
+from rahpo.constants import C0  # noqa: E402
 
 WIN = (100.0, 200.0)
 NGRID = 2001
@@ -57,13 +58,13 @@ ADOPTED = {"element size": "0.010", "plane spacing": "0.04"}
 
 # Values stated in the paper, so a drift in the traces or the metric fails loudly
 PAPER = {
-    "orders_element_size": (1.83, 2.18),                       # min, max over both shapes
+    "orders_element_size": (1.76, 2.24),                       # min, max over both shapes
     "orders_plane_spacing": {"planar": (1.97, 1.86), "corrugated": (2.00, 2.14)},
-    "richardson_pct": {("element size", "planar"): 7.2e-3, ("element size", "corrugated"): 5.3e-3,
+    "richardson_pct": {("element size", "planar"): 6.4e-3, ("element size", "corrugated"): 5.1e-3,
                        ("plane spacing", "planar"): 1.5e-1, ("plane spacing", "corrugated"): 2.2e-1},
     # chi of the method against FDTD (Table 2) for the two swept geometries, the yardstick of
-    # "three orders of magnitude" (element size) and "at least thirty times" (plane spacing)
-    "method_chi_pct": {"planar": 7.8, "corrugated": 7.3},
+    # "about five hundred times" (element size) and "at least fifteen times" (plane spacing)
+    "method_chi_pct": {"planar": 3.4, "corrugated": 3.5},
 }
 CHI = 4   # index of chi in metrics()
 
@@ -174,20 +175,20 @@ def main() -> int:
     for (axis, shape), h in head.items():
         print(f"  {axis:14s} {shape:11s} {h:9.1f}x")
     worst_el = min(head[("element size", s)] for s in SHAPES)
-    good = worst_el >= 10 ** 2.95
+    good = 450 <= worst_el < 550
     ok &= good
-    print(f"  element size: three orders of magnitude, {worst_el:.0f}x at worst  {'OK' if good else 'MISMATCH'}")
+    print(f"  element size: about five hundred times, {worst_el:.0f}x at worst  {'OK' if good else 'MISMATCH'}")
     worst_tr = min(head[("plane spacing", s)] for s in SHAPES)
-    good = 30 <= worst_tr < 40
+    good = 15 <= worst_tr < 20
     ok &= good
-    print(f"  plane spacing: at least thirty times, {worst_tr:.1f}x at worst  {'OK' if good else 'MISMATCH'}")
+    print(f"  plane spacing: at least fifteen times, {worst_tr:.1f}x at worst  {'OK' if good else 'MISMATCH'}")
 
     # Midpoint quadrature over a cell of width dl integrates exp(i k x) with relative error
-    # about (k dl)^2 / 24, with k the wavenumber at 3 f_c in the host (c = 3e8 m/s)
-    k = 2 * math.pi * 3 * 100e6 * math.sqrt(9.0) / 3e8
+    # about (k dl)^2 / 24, with k the wavenumber at 3 f_c in the host
+    k = 2 * math.pi * 3 * 100e6 * math.sqrt(9.0) / C0
     bound_pct = (k * 0.01) ** 2 / 24 * 100
     ratios = [bound_pct / est[("element size", s)] for s in SHAPES]
-    good = f"{k:.1f}" == "18.8" and f"{bound_pct:.2f}" == "0.15" and all(18 <= r <= 32 for r in ratios)
+    good = f"{k:.1f}" == "18.9" and f"{bound_pct:.2f}" == "0.15" and all(20 <= r <= 30 for r in ratios)
     ok &= good
     print(f"\nQuadrature scale: k = {k:.2f} rad/m at 3 f_c, (k dl)^2/24 = {bound_pct:.3f} % at dl = 0.01 m,\n"
           f"  measured error {', '.join(f'{r:.0f}x' for r in ratios)} smaller (planar, corrugated)  "

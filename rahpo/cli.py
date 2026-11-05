@@ -52,10 +52,21 @@ def main(argv: list[str] | None = None) -> int:
 
     g = parser.add_argument_group("fracture")
     g.add_argument("--fracture_type", type=str, default=None,
-                   choices=["planar", "planar-tilted", "piecewise_yz", "sinusoidal_3d"],
+                   choices=["planar", "planar-tilted", "planar-dip", "piecewise_yz", "sinusoidal_3d"],
                    help="Fracture shape (default planar). planar-tilted is the 8 degree plane, "
-                        "piecewise_yz the concave bowl with a flat center, sinusoidal_3d the "
-                        "biaxial corrugation.")
+                        "planar-dip a plane of any inclination (--dip, --fracture_x, "
+                        "--fracture_z), piecewise_yz the concave bowl with a flat center, "
+                        "sinusoidal_3d the biaxial corrugation.")
+    g.add_argument("--dip", type=float, default=None,
+                   help="Inclination of the planar-dip fracture from the borehole axis, in "
+                        "degrees (default 0). A positive dip moves the plane away from the "
+                        "borehole as z increases.")
+    g.add_argument("--fracture_x", type=float, default=None,
+                   help="x of the fracture plane in metres (default 6.5); for planar-dip, at "
+                        "height --fracture_z.")
+    g.add_argument("--fracture_z", type=float, default=None,
+                   help="Height in metres at which planar-dip passes through --fracture_x "
+                        "(default 5.0, also the center of piecewise_yz).")
     g.add_argument("--amplitude", type=float, default=None,
                    help="Corrugation amplitude A in metres for sinusoidal_3d (default 0.25).")
     g.add_argument("--planethick", type=float, default=None,
@@ -96,6 +107,10 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--rec_pos", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
                    help="Receiver position in metres (default 0.5 5.0 4.5). On the borehole "
                         "axis the reciprocal field follows by axial shift.")
+    g.add_argument("--tool_shift", type=float, default=0.0,
+                   help="Move the source, the receiver and the reference plane together along "
+                        "the borehole axis, in metres (default 0). Exact for an axially uniform "
+                        "borehole and host. Needs --no_viz.")
 
     g = parser.add_argument_group("run")
     g.add_argument("--output_name", type=str, default="rahpo_trace",
@@ -127,6 +142,10 @@ def main(argv: list[str] | None = None) -> int:
         logging.warning("Joblib not found. Running in strictly serial mode.")
 
     # --- Initialize Parameters ---
+    if args.tool_shift != 0.0 and not args.no_viz:
+        parser.error("--tool_shift needs --no_viz")
+    if args.dip is not None and args.fracture_type != "planar-dip":
+        parser.error("--dip applies only to --fracture_type planar-dip")
     if args.heterogeneous:
         missing = [n for n in (args.h5_geom, args.syz_geom, args.mat_file)
                    if not n or not os.path.exists(n)]
@@ -169,6 +188,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.fracture_extent is not None:
         (geom_overrides["ymin"], geom_overrides["ymax"],
          geom_overrides["zmin"], geom_overrides["zmax"]) = args.fracture_extent
+    if args.dip is not None:
+        geom_overrides["dip_deg"] = args.dip
+    if args.fracture_x is not None:
+        geom_overrides["x_base"] = args.fracture_x
+    if args.fracture_z is not None:
+        geom_overrides["z_center"] = args.fracture_z
 
     geom = GeometryParams(
         h5_path=args.h5_geom,
@@ -185,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         target_res=args.target_res,
         edge_taper=args.edge_taper,
         incidence=args.incidence,
+        tool_shift=args.tool_shift,
     )
 
     # --- Run Kernel ---

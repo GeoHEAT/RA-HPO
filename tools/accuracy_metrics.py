@@ -51,7 +51,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import hilbert
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from examples.cases import BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
+from examples.cases import ANALYTIC_NOMINAL, BY_KEY, CASES, GATHER_Z, METRICS_DIR, TIME_RANGE, TRACE_DIR  # noqa: E402
 from plot_traces import (band_match, compare_traces, load_analytic, load_rahpo,  # noqa: E402
                          load_scattered_gprmax)
 
@@ -119,6 +119,10 @@ def trace_rows():
     tp, p = load_rahpo(inf.key)
     rows.append(row("exact", "Infinite planar, FDTD against exact", inf.analytic, inf.fdtd, te, de, t, d))
     rows.append(row("exact", "Infinite planar, RA-HPO against exact", inf.analytic, inf.key, te, de, tp, p))
+    # the nominal 2 cm layer, which the two-cell FDTD slab would be without its extra grid plane
+    t2, d2 = load_analytic(ANALYTIC_NOMINAL)
+    rows.append(row("exact", "Infinite planar, FDTD against exact 2 cm layer", ANALYTIC_NOMINAL, inf.fdtd,
+                    t2, d2, t, d))
     fp = BY_KEY["finite_planar"]
     t, d = load_scattered_gprmax(fp)
     for dt in (0.05, 0.10):
@@ -127,10 +131,10 @@ def trace_rows():
     for x in (1.04, 1.05, 1.08):
         rows.append(row("calibration", f"FDTD finite planar divided by {x:.2f}", fp.fdtd,
                         "same, scaled", t, d, t, d / x))
-    t8, a8 = load_rahpo("finite_planar")
+    t8, a8 = load_rahpo("truncated_reference")
     t4, a4 = load_rahpo("truncated_domain")
     rows.append(row("truncation", "Plane from a 4.0 m domain against 8.0 m (RA-HPO traces)",
-                    "finite_planar", "truncated_domain", t8, a8, t4, a4))
+                    "truncated_reference", "truncated_domain", t8, a8, t4, a4))
     tb, ab = load_rahpo("incidence_band")
     tq, aq = load_rahpo("incidence_perfreq")
     rows.append(row("incidence", "Piecewise concave, incidence per frequency against band-averaged",
