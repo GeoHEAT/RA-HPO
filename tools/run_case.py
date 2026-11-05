@@ -17,6 +17,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import shlex
 import subprocess
@@ -55,6 +56,11 @@ def steps(c: Case, cores: int) -> list[str]:
                        f"--out {rel(plane_input(Case('_', '', '', m)))} --target_res {PLANE_RES:g}")
     if c.fdtd:
         out.append("# 2. full-domain reference (gprMax)")
+        args = MODELS / Path(c.fdtd).parent / f"geom_args_{Path(c.fdtd).name}.txt"
+        if args.exists():
+            out.append(f"(cd {rel(args.parent)} && python "
+                       f"{Path(os.path.relpath(REPO / 'tools' / 'generate_geometry_h5.py', args.parent))} "
+                       f"{args.read_text().strip()})")
         for m in (c.fdtd, c.direct):
             if m:
                 out.append(f"python -m gprMax {rel(MODELS / m)}.in")

@@ -1,0 +1,32 @@
+#title: Application, patch dipping 30 deg, 4 cm brine, 16 receivers
+#num_threads: 48
+#domain: 8.0 10.0 10.0
+#dx_dy_dz: 0.01 0.01 0.01
+#time_window: 250e-9
+
+#material: 9.0 1e-4 1 0 rock
+#material: 80.0 0.5 1 0 my_water
+
+#waveform: ricker 100 100e6 my_ricker
+#hertzian_dipole: z 0.5 5.0 5.5 my_ricker
+
+#rx: 0.5 5.0 1.5
+#rx: 0.5 5.0 2.0
+#rx: 0.5 5.0 2.5
+#rx: 0.5 5.0 3.0
+#rx: 0.5 5.0 3.5
+#rx: 0.5 5.0 4.0
+#rx: 0.5 5.0 4.5
+#rx: 0.5 5.0 5.0
+#rx: 0.5 5.0 6.0
+#rx: 0.5 5.0 6.5
+#rx: 0.5 5.0 7.0
+#rx: 0.5 5.0 7.5
+#rx: 0.5 5.0 8.0
+#rx: 0.5 5.0 8.5
+#rx: 0.5 5.0 9.0
+#rx: 0.5 5.0 9.5
+
+#box: 0 0 0 8.0 10.0 10.0 rock
+#cylinder: 0.5 5.0 0 0.5 5.0 10.0 0.075 my_water
+#geometry_objects_read: 0 1 0 input_h5_geom/app_dip30_brine4c.h5 materials_brine.txt

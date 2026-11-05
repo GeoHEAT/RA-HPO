@@ -26,8 +26,10 @@ def fracture_surface_function(y_grid: np.ndarray, z_grid: np.ndarray, geom: Geom
         Local coordinates, measured from the lower corner of the meshed extent.
     geom : GeometryParams
         ``fracture_type`` selects the surface: ``planar``, ``planar-tilted``
-        (8 degrees), ``piecewise_yz`` (concave bowl with a flat center), or
-        ``sinusoidal_3d`` (biaxial corrugation of amplitude ``geom.amplitude``).
+        (8 degrees), ``planar-dip`` (a plane at ``geom.dip_deg`` from the borehole
+        axis through ``x_base`` at ``z_center``), ``piecewise_yz`` (concave bowl
+        with a flat center), or ``sinusoidal_3d`` (biaxial corrugation of
+        amplitude ``geom.amplitude``).
 
     Returns
     -------
@@ -42,6 +44,9 @@ def fracture_surface_function(y_grid: np.ndarray, z_grid: np.ndarray, geom: Geom
         x_surf = np.full_like(Y, geom.x_base) 
     elif geom.fracture_type == 'planar-tilted':
         x_surf = (Z - 50.25)/(-7.11537)
+    elif geom.fracture_type == 'planar-dip':
+        # x = x_base + (z - z_center) tan(dip) in absolute z; Z is local, z = Z + zmin
+        x_surf = geom.x_base + (Z + geom.zmin - geom.z_center) * np.tan(np.radians(geom.dip_deg))
     elif geom.fracture_type == 'piecewise_yz':
         y0 = geom.y_center-geom.ymin
         z0 = geom.z_center-geom.zmin
@@ -403,6 +408,32 @@ def get_fracture_mesh(geom: GeometryParams, media: MediaParams) -> np.ndarray:
     elempos[10, :] = sigma.ravel()
     
     return elempos
+
+
+def drop_elements_before_plane(elempos: np.ndarray, x_plane: float) -> tuple[np.ndarray, np.ndarray]:
+    """Split off the elements at or in front of the reference plane x = x_plane.
+
+    Such an element would need the plane field propagated backwards along the ray (R1 > R2),
+    which the method does not model. Returns the elements behind the plane and the positions
+    (rows 0 to 2) of those removed.
+    """
+    front = elempos[0, :] <= x_plane
+    return elempos[:, ~front], elempos[0:3, front].copy()
+
+
+def completeness_horizon(lost_pos: np.ndarray, src_pos, rec_pos, v: float) -> float | None:
+    """Completeness horizon t_c in seconds, or None if no element is lost.
+
+    lost_pos holds the positions (3, n) of the elements that contribute nothing, because they
+    were dropped before the plane or their ray misses the recorded plane. t_c is the earliest
+    two-way time source -> element -> receiver among them at speed v, plus the source delay
+    sqrt(2)/fc that the trace time axis carries. The trace may lack contributions after t_c.
+    """
+    if lost_pos.shape[1] == 0:
+        return None
+    two_way = (np.linalg.norm(lost_pos - np.asarray(src_pos, float)[:, None], axis=0)
+               + np.linalg.norm(lost_pos - np.asarray(rec_pos, float)[:, None], axis=0))
+    return float(np.min(two_way)) / v + np.sqrt(2.0) / FC
 
 
 def get_specular_point_numerical(src_pos, rec_pos, elempos: np.ndarray) -> tuple[np.ndarray, int]:

@@ -26,8 +26,8 @@ from examples.cases import METRICS_DIR  # noqa: E402
 ACCURACY = [  # Table 2 label -> case name in the CSV
     ("Infinite planar", "Infinite planar"),
     ("Finite planar", "Finite planar"),
-    ("Finite planar, antenna arms", "Finite planar, antenna arms"),
-    (r"Inclined ($8^\circ$)", "Inclined (8 deg)"),
+    ("Finite planar, cylindrical antennas", "Finite planar, antenna arms"),
+    (r"Dipping ($-8^\circ$)", "Inclined (8 deg)"),
     ("Piecewise concave", "Piecewise concave"),
     (r"Biaxial corrugated ($A = 0.25$~m)", "Biaxial corrugated, A = 0.25 m"),
     (r"Heterogeneous, $L_c = 0.2$~m", "Heterogeneous, Lc = 0.2 m"),

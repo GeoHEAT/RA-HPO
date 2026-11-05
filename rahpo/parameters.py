@@ -50,6 +50,11 @@ class GeometryParams:
     # Base X position
     x_base: float = 6.5
 
+    # Inclination from the borehole axis in degrees, used by fracture_type='planar-dip'. The
+    # plane passes through x = x_base at z = z_center, and for a positive dip it moves away from
+    # the borehole as z increases, so its specular point lies below the source.
+    dip_deg: float = 0.0
+
     # Element area in the reaction integral: 'true' weights each element by its surface area,
     # ellength**2 / |n_x|; 'projected' by the projected cell ellength**2. The two are identical
     # on a planar fracture (n_x = 1).
@@ -93,6 +98,10 @@ class RuntimeParams:
     incidence: str = "band"
     # Filled by run_simulation in "perfreq" mode: (element positions, spread in rad, contribution)
     incidence_spread: Optional[tuple] = None
+    # Axial shift of the whole tool in metres: the source, the receiver and the recorded plane
+    # move together along the borehole axis, which is exact for an axially uniform borehole and
+    # host. 0.0 leaves every coordinate as given.
+    tool_shift: float = 0.0
 
 
 @dataclass

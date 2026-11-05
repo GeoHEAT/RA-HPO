@@ -11,6 +11,9 @@ gprMax.
 | `vertical_plannar_2cm_analy_trace.csv` | The reference trace. Column 1 time (ns), column 2 electric field (V/m), 2048 samples at 0.2083 ns |
 | `exxgprt_check.py` | Python transcription of the two MATLAB files. Recomputes the trace and compares it with the CSV, so the reference can be checked without MATLAB |
 | `j2_term_check.py` | Evaluates the J2 term that `exxgprt.m` leaves out and reports its size relative to the J0 term |
+| `thin_layers.py` | The same solution as a Python function of the aperture, the fill and the distance of the layer. `--check` reproduces the stored 2 cm and 3 cm traces, `--infinite` writes the 3 cm one, `--write` the thin layers |
+| `infinite_planar_3cm_analy_trace.csv` | Reference trace of the infinite planar case: the 3 cm layer (front face 5.985 m) that its two-cell FDTD slab acts as in gprMax 3.1.7 |
+| `thin_layers/*.csv` | The thin layers: 0.1, 0.4 and 1 mm of brine, 1 mm of fresh water and 5 mm of water, center plane 6.0 m from the dipoles |
 
 ## Configuration
 
