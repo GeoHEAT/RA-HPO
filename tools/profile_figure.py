@@ -63,6 +63,12 @@ def row_order(scene):
     return sorted(scene, key=lambda p: -p.z_hi)
 
 
+def tick_alignment(ticks, window):
+    """Horizontal alignment of the time labels: a label on an edge of the window is set inside the panel,
+    so the labels of panels (b) and (c), which meet at that edge, do not run together."""
+    return ["left" if t == window[0] else "right" if t == window[1] else "center" for t in ticks]
+
+
 def profile_images(pk, ds, ps, name, window):
     """Radargrams (RA-HPO, calibrated dipole) of one patch on the window (t0, t1) in ns."""
     patch = next(p for p in ps.SCENE if p.name == name)
@@ -117,7 +123,10 @@ def fig_profile(pk, ds, plt, ps, out, window=(100.0, 250.0)):
         for ax, img in ((axb, R), (axc, R - Dp)):
             im = ax.imshow(img / v, aspect="auto", extent=(t[0], t[-1], lo, hi), origin="lower", cmap="seismic",
                            vmin=-1, vmax=1, interpolation="bilinear")
-            ax.set_xlim(*window); ax.set_xticks([100, 150, 200, 250])
+            ticks = [100, 150, 200, 250]
+            ax.set_xlim(*window); ax.set_xticks(ticks)
+            for lab, ha in zip(ax.get_xticklabels(), tick_alignment(ticks, window)):
+                lab.set_horizontalalignment(ha)
             if i < len(ps.SCENE) - 1:
                 plt.setp(ax.get_xticklabels(), visible=False)
             else:
