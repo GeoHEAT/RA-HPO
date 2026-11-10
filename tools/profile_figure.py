@@ -1,10 +1,12 @@
 """Figure of the constant-offset profile: scene, RA-HPO radargram, and its difference from the dipole.
 
 (a) The three fractures of tools/profile_scene.py at true scale, with the source heights at which
-each is valid. (b) The RA-HPO traces along the profile. (c) RA-HPO minus the broadside-calibrated
-dipole. Each fracture is divided by the largest |E_z| of its RA-HPO traces, in (b) and (c) alike,
-and labeled with its median peak against fracture A in (b) and its median peak ratio of RA-HPO
-to the calibrated dipole in (c).
+each is valid shaded. (b) The RA-HPO traces along the profile. (c) RA-HPO minus the broadside-
+calibrated dipole. Panels (b) and (c) have one row per fracture, from the highest down, each over
+the source heights at which that fracture is valid, so the heights between the fractures are not
+drawn; a dashed line joins each shaded band of (a) to its row. Each fracture is divided by the
+largest |E_z| of its RA-HPO traces, in (b) and (c) alike, and labeled with its median peak against
+fracture A in (b) and its median peak ratio of RA-HPO to the calibrated dipole in (c).
 
 Reads the profile traces (profile_* cases, RAHPO_TRACE_DIR) and output/metrics/profile_peaks.csv
 (written by python tools/profile_scene.py --sum --out output/metrics), and writes
@@ -51,6 +53,16 @@ def panel(ax, letter):
     ax.text(0.01, 0.98, f"({letter})", transform=ax.transAxes, va="top", ha="left", fontweight="bold")
 
 
+def scored_window(zs, step):
+    """Source heights a row spans: half a step beyond the first and the last scored position."""
+    return min(zs) - step / 2, max(zs) + step / 2
+
+
+def row_order(scene):
+    """Rows of panels (b) and (c), from the highest fracture down, as in panel (a)."""
+    return sorted(scene, key=lambda p: -p.z_hi)
+
+
 def profile_images(pk, ds, ps, name, window):
     """Radargrams (RA-HPO, calibrated dipole) of one patch on the window (t0, t1) in ns."""
     patch = next(p for p in ps.SCENE if p.name == name)
@@ -67,49 +79,66 @@ def profile_images(pk, ds, ps, name, window):
 
 def fig_profile(pk, ds, plt, ps, out, window=(100.0, 250.0)):
     """(a) scene, (b) RA-HPO radargram, (c) RA-HPO minus the calibrated dipole, along the profile.
-    Each patch is shown on its own gain (its RA-HPO maximum), with its median peak against patch A
-    in dB; (c) uses the gain of (b), so it shows the dipole's error as a fraction of the reflection."""
-    from matplotlib.gridspec import GridSpec
-    from matplotlib.patches import Rectangle
+    Panels (b) and (c) have one row per patch, over its own scored source heights. Each patch is shown
+    on its own gain (its RA-HPO maximum), with its median peak against patch A in dB; (c) uses the gain
+    of (b), so it shows the dipole's error as a fraction of the reflection."""
+    from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+    from matplotlib.patches import ConnectionPatch, Rectangle
     db = relative_db({p.name: [float(r["peak_bh"]) for r in pk if r["patch"] == p.name] for p in ps.SCENE}, "A")
     ratio = {p.name: float(np.median([float(r["ratio"]) for r in pk if r["patch"] == p.name])) for p in ps.SCENE}
     fill = {ps.BRINE: ("#1b7f79", "brine"), ps.FRESH: ("#7fb8d8", "fresh\nwater")}
-    fig = plt.figure(figsize=(7.2, 5.0))
-    gs = GridSpec(1, 4, figure=fig, width_ratios=(1.0, 1.25, 1.25, 0.06), wspace=0.2,
-                  left=0.07, right=0.93, bottom=0.10, top=0.97)
-    a0 = fig.add_subplot(gs[0])
-    a1, a2 = fig.add_subplot(gs[1], sharey=a0), fig.add_subplot(gs[2], sharey=a0)
-    cax = fig.add_subplot(gs[3])
+    fig = plt.figure(figsize=(7.2, 7.6))
+    gs = GridSpec(1, 5, figure=fig, width_ratios=(0.72, 0.13, 1.3, 1.3, 0.05), wspace=0.12,
+                  left=0.07, right=0.925, bottom=0.07, top=0.965)
+    a0, cax = fig.add_subplot(gs[0]), fig.add_subplot(gs[4])
+    rows_b = GridSpecFromSubplotSpec(len(ps.SCENE), 1, subplot_spec=gs[2], hspace=0.12)
+    rows_c = GridSpecFromSubplotSpec(len(ps.SCENE), 1, subplot_spec=gs[3], hspace=0.12)
+    xmax = 15.0
     zmax = max(p.z_hi for p in ps.SCENE) + 8
     a0.add_patch(Rectangle((0.425, 0), 0.15, zmax, color="#9ecae1", lw=0))
     for p in ps.SCENE:
         c, lab = fill[p.fill]
-        a0.plot([p.x_at(p.z_lo), p.x_at(p.z_hi)], [p.z_lo, p.z_hi], color=c, lw=2.2, solid_capstyle="butt")
         z = np.array(ps.positions(p))       # contiguous on the 0.25 m grid
+        a0.axhspan(*scored_window(z, ps.STEP), color="0.93", lw=0, zorder=0)
+        a0.plot([p.x_at(p.z_lo), p.x_at(p.z_hi)], [p.z_lo, p.z_hi], color=c, lw=2.2, solid_capstyle="butt")
         a0.plot([0.5, 0.5], [z.min(), z.max()], color="k", lw=2.0, solid_capstyle="butt")
-        a0.text(float(p.x_at(p.z_hi)) + 0.8, (p.z_lo + p.z_hi) / 2, f"{p.name}\n{p.dip:g}°\n{lab}",
-                fontsize=8, va="center")
-    a0.set_xlim(-0.5, 17); a0.set_ylim(0, zmax); a0.set_aspect("equal")
+        a0.text(float(p.x_at(p.z_hi)) + 0.5, (p.z_lo + p.z_hi) / 2, f"{p.name}\n{p.dip:g}°\n{lab}",
+                fontsize=7.5, va="center")
+    a0.set_xlim(-0.5, xmax); a0.set_ylim(0, zmax); a0.set_aspect("equal", adjustable="box", anchor="C")
     a0.set_xlabel("$x$ (m)"); a0.set_ylabel("Source height (m)")
-    for p in ps.SCENE:
+    a0.set_title("(a)", loc="left", fontweight="bold", fontsize=10, pad=3)
+    im = None
+    for i, p in enumerate(row_order(ps.SCENE)):
         t, zs, R, Dp = profile_images(pk, ds, ps, p.name, window)
         v = np.max(np.abs(R))
-        ext = (t[0], t[-1], zs[0] - ps.STEP / 2, zs[-1] + ps.STEP / 2)
-        for ax, img in ((a1, R), (a2, R - Dp)):
-            im = ax.imshow(img / v, aspect="auto", extent=ext, origin="lower", cmap="seismic", vmin=-1, vmax=1,
-                           interpolation="bilinear")
-        # an empty corner of each patch's block: upper left for a dipping patch (early times at the
-        # highest sources), upper right for the parallel one (late times)
+        lo, hi = scored_window(zs, ps.STEP)
+        axb = fig.add_subplot(rows_b[i])
+        axc = fig.add_subplot(rows_c[i], sharey=axb)
+        for ax, img in ((axb, R), (axc, R - Dp)):
+            im = ax.imshow(img / v, aspect="auto", extent=(t[0], t[-1], lo, hi), origin="lower", cmap="seismic",
+                           vmin=-1, vmax=1, interpolation="bilinear")
+            ax.set_xlim(*window); ax.set_xticks([100, 150, 200, 250])
+            if i < len(ps.SCENE) - 1:
+                plt.setp(ax.get_xticklabels(), visible=False)
+            else:
+                ax.set_xlabel("Time (ns)")
+        plt.setp(axc.get_yticklabels(), visible=False)
+        if i == 1:
+            axb.set_ylabel("Source height (m)")
+        if i == 0:
+            for ax, letter in ((axb, "b"), (axc, "c")):
+                ax.set_title(f"({letter})", loc="left", fontweight="bold", fontsize=10, pad=3)
+        # an empty corner of each row: upper left for a dipping patch (early times at the highest
+        # sources), upper right for the parallel one (late times); the patch name in the opposite one
         tx, ha = (window[0] + 3, "left") if p.dip else (window[1] - 3, "right")
-        a1.text(tx, zs[-1], "0 dB (reference)" if p.name == "A" else f"{db[p.name]:+.1f} dB",
-                ha=ha, va="top", fontsize=8)
-        a2.text(tx, zs[-1], f"peak ratio {ratio[p.name]:.3f}", ha=ha, va="top", fontsize=8)
-    for ax, letter in ((a0, "a"), (a1, "b"), (a2, "c")):
-        panel(ax, letter)
-    for ax in (a1, a2):
-        ax.set_xlim(*window); ax.set_xlabel("Time (ns)")
-        plt.setp(ax.get_yticklabels(), visible=False)
-    a1.set_ylim(0, zmax)
+        axb.text(tx, zs[-1] - 0.3, "0 dB (reference)" if p.name == "A" else f"{db[p.name]:+.1f} dB",
+                 ha=ha, va="top", fontsize=8)
+        axc.text(tx, zs[-1] - 0.3, f"peak ratio {ratio[p.name]:.3f}", ha=ha, va="top", fontsize=8)
+        axb.text(window[1] - 3 if p.dip else window[0] + 3, zs[0] + 0.3, p.name,
+                 ha="right" if p.dip else "left", va="bottom", fontsize=9, fontweight="bold")
+        for zz in (lo, hi):                 # join the shaded band of (a) to its row
+            fig.add_artist(ConnectionPatch(xyA=(xmax, zz), coordsA=a0.transData, xyB=(window[0], zz),
+                                           coordsB=axb.transData, color="0.65", lw=0.6, ls=(0, (2, 2))))
     # each patch divided by the largest |E_z| of its RA-HPO traces
     fig.colorbar(im, cax=cax, label="normalized $E_z$")
     fig.savefig(out)
