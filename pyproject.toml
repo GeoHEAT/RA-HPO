@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Jinqiang Chen", email = "j.chen-11@tudelft.nl" },
-    { name = "Alexis Shakas", email = "alexis.shakas@eaps.ethz.ch" },
+    { name = "Alexis Shakas", email = "alexis.shakas@wavesense.ch" },
     { name = "Evert Slob" },
 ]
 keywords = ["GPR", "borehole radar", "forward modeling", "physical optics"]
