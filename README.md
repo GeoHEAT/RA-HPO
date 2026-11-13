@@ -44,8 +44,8 @@ the arrival of the reflection.
 ## Installation
 
 ```bash
-git clone https://github.com/GeoHEAT/WP5T1_borehole_radar_forward_solver.git
-cd WP5T1_borehole_radar_forward_solver
+git clone https://github.com/GeoHEAT/RA-HPO.git
+cd RA-HPO
 conda env create -f environment.yml            # solver and gprMax (Python 3.11)
 conda env create -f environment-analysis.yml   # figures and tables (Python 3.12)
 conda activate rahpo

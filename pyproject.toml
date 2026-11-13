@@ -30,7 +30,7 @@ dev = ["pytest"]
 rahpo = "rahpo.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/GeoHEAT/WP5T1_borehole_radar_forward_solver"
+Homepage = "https://github.com/GeoHEAT/RA-HPO"
 
 [tool.setuptools.packages.find]
 include = ["rahpo*"]
